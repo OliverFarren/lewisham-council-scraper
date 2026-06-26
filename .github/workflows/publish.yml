@@ -1,0 +1,54 @@
+name: Publish Docker Images
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# Uncomment and configure when ready to publish to ghcr.io.
+#
+# jobs:
+#   build-and-push:
+#     name: Build & push (${{ matrix.package }})
+#     runs-on: ubuntu-latest
+#     permissions:
+#       contents: read
+#       packages: write
+#     strategy:
+#       matrix:
+#         package: [lewisham-server, lewisham-mcp]
+#     steps:
+#       - uses: actions/checkout@v4
+#
+#       - name: Log in to ghcr.io
+#         uses: docker/login-action@v3
+#         with:
+#           registry: ghcr.io
+#           username: ${{ github.actor }}
+#           password: ${{ secrets.GITHUB_TOKEN }}
+#
+#       - name: Extract metadata
+#         id: meta
+#         uses: docker/metadata-action@v5
+#         with:
+#           images: ghcr.io/${{ github.repository_owner }}/${{ matrix.package }}
+#           tags: |
+#             type=semver,pattern={{version}}
+#             type=semver,pattern={{major}}.{{minor}}
+#             type=sha
+#
+#       - name: Build and push
+#         uses: docker/build-push-action@v6
+#         with:
+#           context: .
+#           file: packages/${{ matrix.package }}/Dockerfile
+#           push: true
+#           tags: ${{ steps.meta.outputs.tags }}
+#           labels: ${{ steps.meta.outputs.labels }}
+
+# Placeholder job so the workflow file is valid while the above is commented out.
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "publish workflow triggered for ${{ github.ref_name }} — uncomment jobs above to enable"
