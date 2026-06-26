@@ -1,7 +1,5 @@
-from fastapi import FastAPI
+"""ASGI entrypoint for uvicorn and other ASGI servers."""
 
-from lewisham_server.routers import bins
+from lewisham_server.api.app import create_app
 
-app = FastAPI(title="Lewisham Council Scraper API", version="0.1.0")
-
-app.include_router(bins.router, prefix="/bins", tags=["bins"])
+app = create_app()

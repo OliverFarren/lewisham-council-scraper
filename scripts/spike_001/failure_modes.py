@@ -33,7 +33,9 @@ def section(title: str) -> None:
     print(f"\n{SEP}\n  {title}\n{SEP}")
 
 
-def af(client: httpx.Client, postcode_or_street: str, national: str = "False") -> tuple[int, object]:
+def af(
+    client: httpx.Client, postcode_or_street: str, national: str = "False"
+) -> tuple[int, object]:
     r = client.post(
         f"{BASE_URL}/api/AddressFinder",
         params={"postcodeOrStreet": postcode_or_street, "national": national},
@@ -53,7 +55,6 @@ def ri(client: httpx.Client, uprn: str) -> tuple[int, str]:
 
 def main() -> None:
     with httpx.Client(follow_redirects=True, timeout=30) as client:
-
         # Look up a residential UPRN dynamically for use in later tests
         af_resp = client.post(
             f"{BASE_URL}/api/AddressFinder",
@@ -62,10 +63,16 @@ def main() -> None:
         )
         addresses = af_resp.json() if af_resp.status_code == 200 else []
         residential_uprn = next(
-            (str(a["Uprn"]) for a in addresses if a.get("Title", "").split()[0].rstrip(",").isdigit()),
+            (
+                str(a["Uprn"])
+                for a in addresses
+                if a.get("Title", "").split()[0].rstrip(",").isdigit()
+            ),
             None,
         )
-        print(f"Residential UPRN for {TEST_POSTCODE}: {'found' if residential_uprn else 'NOT FOUND'}")
+        print(
+            f"Residential UPRN for {TEST_POSTCODE}: {'found' if residential_uprn else 'NOT FOUND'}"
+        )
 
         # ── AddressFinder failure modes ───────────────────────────────────
         section("1. AddressFinder: non-Lewisham and invalid postcodes")
@@ -128,7 +135,11 @@ def main() -> None:
                 try:
                     data = r.json()
                     # Print without the actual UPRN value
-                    title = data.get("Title", "?") if isinstance(data, dict) else str(data)[:100]
+                    title = (
+                        data.get("Title", "?")
+                        if isinstance(data, dict)
+                        else str(data)[:100]
+                    )
                     print(f"  Title: {title!r}")
                 except Exception:
                     print(f"  Body: {r.text[:200]!r}")

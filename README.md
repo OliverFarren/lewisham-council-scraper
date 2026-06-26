@@ -23,7 +23,28 @@ lewisham-council-scraper/
 
 FastAPI application that scrapes and serves Lewisham Council data via a REST API.
 
-- `GET /bins` — bin collection data (placeholder)
+- `GET /bins/addresses?postcode={postcode}` - address candidates for a bin lookup
+- `GET /bins/addresses/{uprn}/collections` - bin collection schedule for one UPRN
+
+Configuration is environment-driven. Service-specific variables use the
+`LEWISHAM_SERVER_` prefix; `PORT` is also accepted because many container
+platforms provide it automatically.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `LEWISHAM_SERVER_HOST` | `0.0.0.0` | Bind host used by the bundled uvicorn runner. |
+| `LEWISHAM_SERVER_PORT` | `8000` | Bind port. Takes precedence over `PORT`. |
+| `PORT` | `8000` | Common platform port fallback. |
+| `LEWISHAM_SERVER_WORKERS` | `1` | Number of uvicorn worker processes. |
+| `LEWISHAM_SERVER_LOG_LEVEL` | `info` | Uvicorn log level. |
+| `LEWISHAM_SERVER_UPSTREAM_BASE_URL` | `https://lewisham.gov.uk` | Lewisham upstream origin. |
+| `LEWISHAM_SERVER_UPSTREAM_COLLECTION_PAGE_URL` | Lewisham bin collection page | Public page that backs the scraped endpoint. |
+| `LEWISHAM_SERVER_UPSTREAM_ROUNDS_INFORMATION_ITEM_GUID` | Sitecore item GUID from the spike | Sitecore rendering ID used by the rounds-information endpoint. |
+| `LEWISHAM_SERVER_UPSTREAM_USER_AGENT` | `lewisham-council-scraper/0.1` | User-Agent sent to Lewisham. |
+| `LEWISHAM_SERVER_UPSTREAM_REQUEST_TIMEOUT_SECONDS` | `10.0` | Outbound request timeout. |
+| `LEWISHAM_SERVER_CACHE_SCHEDULE_TTL_SECONDS` | `86400` | Positive schedule cache TTL. |
+| `LEWISHAM_SERVER_CACHE_ADDRESS_TTL_SECONDS` | `604800` | Address cache TTL. |
+| `LEWISHAM_SERVER_CACHE_NEGATIVE_TTL_SECONDS` | `3600` | Negative cache TTL. |
 
 ### lewisham-mcp
 
@@ -54,6 +75,14 @@ cd packages/lewisham-mcp   && uv run mypy src/
 # Test (per package)
 cd packages/lewisham-server && uv run pytest
 cd packages/lewisham-mcp   && uv run pytest
+```
+
+The same workflow is also available through the top-level `Makefile`:
+
+```bash
+make install
+make check
+make server-dev
 ```
 
 ## Docker

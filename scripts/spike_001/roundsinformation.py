@@ -37,7 +37,6 @@ def section(title: str) -> None:
 
 def main() -> None:
     with httpx.Client(follow_redirects=True, timeout=30) as client:
-
         # Look up addresses to get residential and civic UPRNs dynamically
         section(f"0. AddressFinder: {TEST_POSTCODE}")
         af = client.post(
@@ -50,11 +49,19 @@ def main() -> None:
         print(f"Addresses found: {len(addresses)}")
 
         residential_uprn = next(
-            (str(a["Uprn"]) for a in addresses if a.get("Title", "").split()[0].rstrip(",").isdigit()),
+            (
+                str(a["Uprn"])
+                for a in addresses
+                if a.get("Title", "").split()[0].rstrip(",").isdigit()
+            ),
             None,
         )
         civic_uprn = next(
-            (str(a["Uprn"]) for a in addresses if not a.get("Title", "").split()[0].rstrip(",").isdigit()),
+            (
+                str(a["Uprn"])
+                for a in addresses
+                if not a.get("Title", "").split()[0].rstrip(",").isdigit()
+            ),
             None,
         )
         print(f"Residential UPRN: {'found' if residential_uprn else 'NOT FOUND'}")

@@ -16,9 +16,6 @@ build/
 venv/
 env/
 
-# uv
-uv.lock
-
 # Testing
 .pytest_cache/
 .coverage
@@ -32,6 +29,7 @@ htmlcov/
 .ruff_cache/
 
 # IDEs
+.claude/
 .idea/
 .vscode/
 *.iml
