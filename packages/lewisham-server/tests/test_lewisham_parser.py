@@ -8,10 +8,16 @@ from lewisham_server.domain.errors import (
     CollectionScheduleNotFoundError,
     UpstreamScraperChangedError,
 )
+from lewisham_server.logging_config import configure_logging
+from lewisham_server.settings import Settings
 
 
 def encode_html(fragment: str) -> str:
     return json.dumps(fragment)
+
+
+def json_events(output: str) -> list[dict[str, object]]:
+    return [json.loads(line) for line in output.splitlines()]
 
 
 def test_parser_extracts_residential_schedule() -> None:
@@ -82,6 +88,54 @@ def test_parser_rejects_malformed_json() -> None:
 
     with pytest.raises(UpstreamScraperChangedError):
         parser.parse_collection_schedule("{not-json")
+
+
+def test_parser_logs_contract_drift_without_raw_payload_by_default(capsys) -> None:
+    configure_logging(Settings(log_format="json", log_level="debug"))
+    parser = LewishamParser()
+    raw_body = "{not-json SECRET-UPSTREAM-PAYLOAD"
+
+    with pytest.raises(UpstreamScraperChangedError):
+        parser.parse_collection_schedule(raw_body)
+
+    captured = capsys.readouterr()
+    event = json_events(captured.err)[0]
+
+    assert event["event"] == "parser_contract_drift"
+    assert event["payload_size_bytes"] == len(raw_body.encode("utf-8"))
+    assert "payload_sha256" in event
+    assert "payload_preview" not in event
+    assert "SECRET-UPSTREAM-PAYLOAD" not in captured.err
+
+
+def test_parser_logs_raw_preview_only_with_debug_and_explicit_opt_in(capsys) -> None:
+    configure_logging(Settings(log_format="json", log_level="debug"))
+    parser = LewishamParser(include_raw_upstream=True, raw_upstream_max_chars=10)
+    raw_body = "{not-json SECRET-UPSTREAM-PAYLOAD"
+
+    with pytest.raises(UpstreamScraperChangedError):
+        parser.parse_collection_schedule(raw_body)
+
+    captured = capsys.readouterr()
+    event = json_events(captured.err)[0]
+
+    assert event["payload_preview"] == raw_body[:10]
+    assert event["payload_truncated"] is True
+
+
+def test_parser_skips_raw_preview_when_debug_is_disabled(capsys) -> None:
+    configure_logging(Settings(log_format="json", log_level="info"))
+    parser = LewishamParser(include_raw_upstream=True, raw_upstream_max_chars=10)
+    raw_body = "{not-json SECRET-UPSTREAM-PAYLOAD"
+
+    with pytest.raises(UpstreamScraperChangedError):
+        parser.parse_collection_schedule(raw_body)
+
+    captured = capsys.readouterr()
+    event = json_events(captured.err)[0]
+
+    assert "payload_preview" not in event
+    assert "SECRET-UPSTREAM-PAYLOAD" not in captured.err
 
 
 def test_parser_rejects_malformed_date_phrase() -> None:

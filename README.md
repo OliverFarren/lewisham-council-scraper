@@ -36,7 +36,10 @@ platforms provide it automatically.
 | `LEWISHAM_SERVER_PORT` | `8000` | Bind port. Takes precedence over `PORT`. |
 | `PORT` | `8000` | Common platform port fallback. |
 | `LEWISHAM_SERVER_WORKERS` | `1` | Number of uvicorn worker processes. |
-| `LEWISHAM_SERVER_LOG_LEVEL` | `info` | Uvicorn log level. |
+| `LEWISHAM_SERVER_LOG_LEVEL` | `info` | Application and Uvicorn log level. |
+| `LEWISHAM_SERVER_LOG_FORMAT` | `text` | Log renderer: `text` for terminals or `json` for aggregators. |
+| `LEWISHAM_SERVER_LOG_INCLUDE_RAW_UPSTREAM` | `false` | Include truncated raw upstream payload previews in parser drift logs. Requires debug logging. |
+| `LEWISHAM_SERVER_LOG_RAW_UPSTREAM_MAX_CHARS` | `4096` | Maximum characters included in opt-in raw upstream payload previews. |
 | `LEWISHAM_SERVER_UPSTREAM_BASE_URL` | `https://lewisham.gov.uk` | Lewisham upstream origin. |
 | `LEWISHAM_SERVER_UPSTREAM_COLLECTION_PAGE_URL` | Lewisham bin collection page | Public page that backs the scraped endpoint. |
 | `LEWISHAM_SERVER_UPSTREAM_ROUNDS_INFORMATION_ITEM_GUID` | Sitecore item GUID from the spike | Sitecore rendering ID used by the rounds-information endpoint. |
@@ -45,6 +48,39 @@ platforms provide it automatically.
 | `LEWISHAM_SERVER_CACHE_SCHEDULE_TTL_SECONDS` | `86400` | Positive schedule cache TTL. |
 | `LEWISHAM_SERVER_CACHE_ADDRESS_TTL_SECONDS` | `604800` | Address cache TTL. |
 | `LEWISHAM_SERVER_CACHE_NEGATIVE_TTL_SECONDS` | `3600` | Negative cache TTL. |
+
+#### Logging
+
+Logs are written to the container streams: `DEBUG` and `INFO` go to stdout,
+while `WARNING`, `ERROR`, and `CRITICAL` go to stderr. Uvicorn access logs are
+disabled in favour of one sanitized `http_request` event per request from the
+application.
+
+Text logs are intended for humans:
+
+```text
+2026-06-26T19:30:00Z [info     ] http_request                  [lewisham_server.api.middleware] method=GET route=/bins/addresses/{uprn}/collections status_code=200 duration_ms=12.34
+```
+
+JSON logs are intended for Docker log processors such as Vector, Promtail, or
+ELK:
+
+```json
+{"method":"GET","route":"/bins/addresses/{uprn}/collections","status_code":200,"duration_ms":12.34,"event":"http_request","logger":"lewisham_server.api.middleware","level":"info","timestamp":"2026-06-26T19:30:00Z"}
+```
+
+By default, logs do not include raw UPRNs, addresses, postcode query values,
+client IPs, or raw upstream bodies. If Lewisham changes its response shape and a
+parser drift error appears, set both of these temporarily:
+
+```bash
+LEWISHAM_SERVER_LOG_LEVEL=debug
+LEWISHAM_SERVER_LOG_INCLUDE_RAW_UPSTREAM=true
+```
+
+The drift log will include payload size, SHA-256, and a truncated payload
+preview suitable for a GitHub issue. Turn the raw payload option off after
+capturing the failing response.
 
 ### lewisham-mcp
 

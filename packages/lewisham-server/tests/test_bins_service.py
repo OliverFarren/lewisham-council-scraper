@@ -6,7 +6,9 @@ import pytest
 from lewisham_server.clients.lewisham import CollectionScheduleRaw
 from lewisham_server.domain.errors import CollectionScheduleNotFoundError
 from lewisham_server.domain.models import AddressCandidate
+from lewisham_server.logging_config import configure_logging
 from lewisham_server.services import BinsService
+from lewisham_server.settings import Settings
 from lewisham_server.storage import MemoryTtlCache
 
 
@@ -77,6 +79,10 @@ def empty_schedule_body() -> str:
     return json.dumps("<p>If the above is incorrect please notify us</p>")
 
 
+def json_events(output: str) -> list[dict[str, object]]:
+    return [json.loads(line) for line in output.splitlines()]
+
+
 @pytest.mark.asyncio
 async def test_service_caches_successful_schedule() -> None:
     clock = MutableClock()
@@ -106,6 +112,51 @@ async def test_lookup_addresses_caches_results_and_populates_address_cache() -> 
     assert client.lookup_calls == 1
     assert client.address_calls == 0
     assert client.schedule_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_lookup_addresses_logs_safe_cache_and_completion_events(capsys) -> None:
+    configure_logging(Settings(log_format="json", log_level="debug"))
+    clock = MutableClock()
+    address = AddressCandidate(uprn="100000000001", title="1 Example Street")
+    client = FakeLewishamClient(addresses=[address])
+    service = BinsService(client=client, clock=clock)
+
+    await service.lookup_addresses("SE6 1SQ")
+    await service.lookup_addresses("SE6 1SQ")
+
+    captured = capsys.readouterr()
+    events = json_events(captured.out)
+    event_names = [event["event"] for event in events]
+
+    assert "cache_miss" in event_names
+    assert "cache_store" in event_names
+    assert "cache_hit" in event_names
+    assert event_names.count("address_lookup_completed") == 2
+    assert "SE6 1SQ" not in captured.out
+    assert "100000000001" not in captured.out
+    assert "1 Example Street" not in captured.out
+
+
+@pytest.mark.asyncio
+async def test_get_collection_schedule_logs_safe_completion_event(capsys) -> None:
+    configure_logging(Settings(log_format="json", log_level="debug"))
+    clock = MutableClock()
+    client = FakeLewishamClient()
+    service = BinsService(client=client, clock=clock)
+
+    await service.get_collection_schedule("100000000001")
+
+    captured = capsys.readouterr()
+    events = json_events(captured.out)
+    completion_event = next(
+        event for event in events if event["event"] == "schedule_lookup_completed"
+    )
+
+    assert completion_event["collection_count"] == 1
+    assert completion_event["next_collection"] == "2026-07-02"
+    assert "100000000001" not in captured.out
+    assert "1 Example Street" not in captured.out
 
 
 @pytest.mark.asyncio

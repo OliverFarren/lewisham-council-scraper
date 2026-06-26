@@ -61,7 +61,7 @@ server: ## Run lewisham-server using its production entrypoint.
 
 .PHONY: server-dev
 server-dev: ## Run lewisham-server with uvicorn reload enabled.
-	$(UV) run --package $(SERVER_PACKAGE) uvicorn lewisham_server.main:app --reload
+	$(UV) run --package $(SERVER_PACKAGE) uvicorn lewisham_server.main:app --reload --no-access-log
 
 .PHONY: mcp
 mcp: ## Run the MCP server.

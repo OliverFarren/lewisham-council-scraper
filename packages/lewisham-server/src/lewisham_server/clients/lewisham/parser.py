@@ -1,7 +1,11 @@
+import hashlib
 import html
 import json
+import logging
 import re
 from datetime import date, datetime
+
+import structlog
 
 from lewisham_server.clients.lewisham.models import ParsedCollectionSchedule
 from lewisham_server.domain.errors import (
@@ -28,26 +32,40 @@ _NEXT_DATE_PHRASE_PATTERN = re.compile(
     r"your\s+next\s+collection\s+date\s+is\s*(?P<date>[^.<\n\r]+)",
     re.IGNORECASE,
 )
+logger = structlog.get_logger(__name__)
 
 
 class LewishamParser:
     """Parse Lewisham's JSON-encoded Sitecore schedule HTML."""
 
+    def __init__(
+        self,
+        *,
+        include_raw_upstream: bool = False,
+        raw_upstream_max_chars: int = 4_096,
+    ) -> None:
+        self._include_raw_upstream = include_raw_upstream
+        self._raw_upstream_max_chars = raw_upstream_max_chars
+
     def parse_collection_schedule(self, raw_body: str) -> ParsedCollectionSchedule:
         """Return structured collection entries from a roundsinformation response."""
 
-        decoded_html = self._decode_json_html(raw_body)
-        normalised_html = self._normalise_html(decoded_html)
-        collections = self._parse_entries(normalised_html)
-        if not collections:
-            raise CollectionScheduleNotFoundError(
-                "Lewisham returned no collection entries for this UPRN."
-            )
+        try:
+            decoded_html = self._decode_json_html(raw_body)
+            normalised_html = self._normalise_html(decoded_html)
+            collections = self._parse_entries(normalised_html)
+            if not collections:
+                raise CollectionScheduleNotFoundError(
+                    "Lewisham returned no collection entries for this UPRN."
+                )
 
-        return ParsedCollectionSchedule(
-            collections=collections,
-            next_collection=self._parse_next_collection(normalised_html),
-        )
+            return ParsedCollectionSchedule(
+                collections=collections,
+                next_collection=self._parse_next_collection(normalised_html),
+            )
+        except UpstreamScraperChangedError as exc:
+            self._log_contract_drift(raw_body, exc)
+            raise
 
     @staticmethod
     def _decode_json_html(raw_body: str) -> str:
@@ -115,3 +133,27 @@ class LewishamParser:
     def _clean_text(value: str) -> str:
         without_tags = _TAG_PATTERN.sub(" ", value)
         return " ".join(html.unescape(without_tags).replace("\xa0", " ").split())
+
+    def _log_contract_drift(
+        self,
+        raw_body: str,
+        error: UpstreamScraperChangedError,
+    ) -> None:
+        event: dict[str, object] = {
+            "payload_size_bytes": len(raw_body.encode("utf-8")),
+            "payload_sha256": hashlib.sha256(raw_body.encode("utf-8")).hexdigest(),
+            "error_type": type(error).__name__,
+            "error_message": str(error),
+        }
+        if self._should_include_raw_upstream():
+            event["payload_preview"] = raw_body[: self._raw_upstream_max_chars]
+            event["payload_truncated"] = len(raw_body) > self._raw_upstream_max_chars
+
+        logger.error("parser_contract_drift", **event)
+
+    def _should_include_raw_upstream(self) -> bool:
+        return (
+            self._include_raw_upstream
+            and self._raw_upstream_max_chars > 0
+            and logging.getLogger(__name__).isEnabledFor(logging.DEBUG)
+        )

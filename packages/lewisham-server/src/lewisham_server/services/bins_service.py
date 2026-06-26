@@ -2,6 +2,8 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
+import structlog
+
 from lewisham_server.clients.lewisham import (
     CollectionScheduleRaw,
     LewishamClient,
@@ -20,6 +22,7 @@ from lewisham_server.storage import MemoryTtlCache, TtlCache
 SCHEDULE_CACHE_TTL = timedelta(hours=24)
 ADDRESS_CACHE_TTL = timedelta(days=7)
 NEGATIVE_CACHE_TTL = timedelta(hours=1)
+logger = structlog.get_logger(__name__)
 
 
 def _default_clock() -> datetime:
@@ -71,15 +74,33 @@ class BinsService:
 
         search_key = self._key("address-search", postcode_or_street)
         if self._negative_cache.get(search_key) is True:
+            logger.debug("negative_cache_hit", namespace="address_search")
+            logger.info("address_lookup_completed", candidate_count=0)
             return []
 
         cached_addresses = self._address_search_cache.get(search_key)
         if cached_addresses is not None:
+            logger.debug(
+                "cache_hit",
+                namespace="address_search",
+                candidate_count=len(cached_addresses),
+            )
+            logger.info(
+                "address_lookup_completed",
+                candidate_count=len(cached_addresses),
+            )
             return list(cached_addresses)
 
+        logger.debug("cache_miss", namespace="address_search")
         addresses = await self._client.lookup_addresses(postcode_or_street)
         if not addresses:
             self._negative_cache.set(search_key, True, self._negative_cache_ttl)
+            logger.debug(
+                "cache_store",
+                namespace="address_search",
+                cache_type="negative",
+            )
+            logger.info("address_lookup_completed", candidate_count=0)
             return []
 
         self._address_search_cache.set(
@@ -87,13 +108,21 @@ class BinsService:
             list(addresses),
             self._address_cache_ttl,
         )
+        logger.debug(
+            "cache_store",
+            namespace="address_search",
+            cache_type="positive",
+            candidate_count=len(addresses),
+        )
         for address in addresses:
             self._address_cache.set(
                 self._key("address", address.uprn),
                 address,
                 self._address_cache_ttl,
             )
+            logger.debug("cache_store", namespace="address", cache_type="positive")
 
+        logger.info("address_lookup_completed", candidate_count=len(addresses))
         return addresses
 
     async def get_collection_schedule(self, uprn: str) -> CollectionSchedule:
@@ -101,14 +130,33 @@ class BinsService:
 
         schedule_key = self._key("schedule", uprn)
         if self._negative_cache.get(schedule_key) is True:
+            logger.debug("negative_cache_hit", namespace="schedule")
+            logger.warning("schedule_lookup_missing")
             raise CollectionScheduleNotFoundError(
                 f"No collection schedule found for UPRN {uprn.strip()}."
             )
 
         cached_schedule = self._schedule_cache.get(schedule_key)
         if cached_schedule is not None:
+            logger.debug(
+                "cache_hit",
+                namespace="schedule",
+                collection_count=len(cached_schedule.collections),
+            )
+            logger.info(
+                "schedule_lookup_completed",
+                collection_count=len(cached_schedule.collections),
+                next_collection=(
+                    cached_schedule.next_collection.isoformat()
+                    if cached_schedule.next_collection is not None
+                    else None
+                ),
+                source_url=cached_schedule.source_url,
+                fetched_at=cached_schedule.fetched_at.isoformat(),
+            )
             return cached_schedule
 
+        logger.debug("cache_miss", namespace="schedule")
         address = await self._get_address(uprn)
         raw_schedule = await self._client.get_collection_schedule(address.uprn)
 
@@ -116,6 +164,8 @@ class BinsService:
             parsed_schedule = self._parser.parse_collection_schedule(raw_schedule.body)
         except CollectionScheduleNotFoundError:
             self._negative_cache.set(schedule_key, True, self._negative_cache_ttl)
+            logger.debug("cache_store", namespace="schedule", cache_type="negative")
+            logger.warning("schedule_lookup_missing")
             raise
 
         schedule = CollectionSchedule(
@@ -127,6 +177,23 @@ class BinsService:
             fetched_at=raw_schedule.fetched_at,
         )
         self._schedule_cache.set(schedule_key, schedule, self._schedule_cache_ttl)
+        logger.debug(
+            "cache_store",
+            namespace="schedule",
+            cache_type="positive",
+            collection_count=len(schedule.collections),
+        )
+        logger.info(
+            "schedule_lookup_completed",
+            collection_count=len(schedule.collections),
+            next_collection=(
+                schedule.next_collection.isoformat()
+                if schedule.next_collection is not None
+                else None
+            ),
+            source_url=schedule.source_url,
+            fetched_at=schedule.fetched_at.isoformat(),
+        )
         return schedule
 
     async def aclose(self) -> None:
@@ -137,21 +204,28 @@ class BinsService:
     async def _get_address(self, uprn: str) -> AddressCandidate:
         address_key = self._key("address", uprn)
         if self._negative_cache.get(address_key) is True:
+            logger.debug("negative_cache_hit", namespace="address")
+            logger.warning("address_lookup_missing")
             raise AddressNotFoundError(
                 f"No Lewisham address found for UPRN {uprn.strip()}."
             )
 
         cached_address = self._address_cache.get(address_key)
         if cached_address is not None:
+            logger.debug("cache_hit", namespace="address")
             return cached_address
 
+        logger.debug("cache_miss", namespace="address")
         try:
             address = await self._client.get_address(uprn)
         except AddressNotFoundError:
             self._negative_cache.set(address_key, True, self._negative_cache_ttl)
+            logger.debug("cache_store", namespace="address", cache_type="negative")
+            logger.warning("address_lookup_missing")
             raise
 
         self._address_cache.set(address_key, address, self._address_cache_ttl)
+        logger.debug("cache_store", namespace="address", cache_type="positive")
         return address
 
     @staticmethod

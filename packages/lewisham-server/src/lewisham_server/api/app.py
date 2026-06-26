@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from lewisham_server.api.lifespan import create_lifespan
+from lewisham_server.api.middleware import add_request_logging_middleware
 from lewisham_server.api.routers import bins
 from lewisham_server.settings import Settings, get_settings
 
@@ -14,5 +15,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version=app_settings.app_version,
         lifespan=create_lifespan(app_settings),
     )
+    add_request_logging_middleware(app)
     app.include_router(bins.router, prefix="/bins", tags=["bins"])
     return app

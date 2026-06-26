@@ -1,7 +1,9 @@
 from collections.abc import Callable
 from datetime import UTC, datetime
+from time import perf_counter
 
 import httpx
+import structlog
 
 from lewisham_server.clients.lewisham.config import (
     ADDRESS_FINDER_PATH,
@@ -21,6 +23,8 @@ from lewisham_server.domain.errors import (
     UpstreamUnavailableError,
 )
 from lewisham_server.domain.models import AddressCandidate
+
+logger = structlog.get_logger(__name__)
 
 
 def _default_clock() -> datetime:
@@ -57,12 +61,14 @@ class LewishamClient:
         search_text = self._validate_address_search(postcode_or_street)
         response = await self._post(
             ADDRESS_FINDER_PATH,
+            endpoint_name="AddressFinder",
             params={"postcodeOrStreet": search_text, "national": "False"},
         )
         self._ensure_success(response, endpoint_name="AddressFinder")
 
         payload = self._read_json(response, endpoint_name="AddressFinder")
         if not isinstance(payload, list):
+            logger.error("upstream_contract_drift", endpoint="AddressFinder")
             raise UpstreamScraperChangedError(
                 "AddressFinder returned a non-list response."
             )
@@ -75,6 +81,7 @@ class LewishamClient:
         clean_uprn = self._validate_uprn(uprn)
         response = await self._post(
             ADDRESS_FINDER_PATH,
+            endpoint_name="AddressFinder UPRN lookup",
             params={"uprn": clean_uprn},
         )
         self._ensure_success(response, endpoint_name="AddressFinder UPRN lookup")
@@ -101,6 +108,7 @@ class LewishamClient:
         clean_uprn = self._validate_uprn(uprn)
         response = await self._post(
             ROUNDS_INFORMATION_PATH,
+            endpoint_name="roundsinformation",
             params={"item": self._rounds_information_item_guid, "uprn": clean_uprn},
         )
         self._ensure_success(response, endpoint_name="roundsinformation")
@@ -125,17 +133,44 @@ class LewishamClient:
         self,
         path: str,
         *,
+        endpoint_name: str,
         params: dict[str, str],
     ) -> httpx.Response:
+        start_time = perf_counter()
+        logger.debug(
+            "upstream_request",
+            endpoint=endpoint_name,
+            upstream_path=path,
+        )
         try:
-            return await self._client.post(
+            response = await self._client.post(
                 self._build_url(path),
                 params=params,
                 headers=self._headers,
             )
+            logger.debug(
+                "upstream_response",
+                endpoint=endpoint_name,
+                status_code=response.status_code,
+                duration_ms=_duration_ms(start_time),
+                response_size_bytes=len(response.content),
+            )
+            return response
         except httpx.TimeoutException as exc:
+            logger.warning(
+                "upstream_timeout",
+                endpoint=endpoint_name,
+                duration_ms=_duration_ms(start_time),
+                error_type=type(exc).__name__,
+            )
             raise UpstreamUnavailableError("Lewisham request timed out.") from exc
         except httpx.TransportError as exc:
+            logger.warning(
+                "upstream_transport_error",
+                endpoint=endpoint_name,
+                duration_ms=_duration_ms(start_time),
+                error_type=type(exc).__name__,
+            )
             raise UpstreamUnavailableError("Lewisham request failed.") from exc
 
     @property
@@ -189,10 +224,22 @@ class LewishamClient:
             return
 
         if response.status_code == 500:
+            logger.error(
+                "upstream_contract_drift",
+                endpoint=endpoint_name,
+                status_code=response.status_code,
+                response_size_bytes=len(response.content),
+            )
             raise UpstreamScraperChangedError(
                 f"{endpoint_name} returned HTTP 500 for a validated request."
             )
 
+        logger.error(
+            "upstream_contract_drift",
+            endpoint=endpoint_name,
+            status_code=response.status_code,
+            response_size_bytes=len(response.content),
+        )
         raise UpstreamScraperChangedError(
             f"{endpoint_name} returned unexpected HTTP {response.status_code}."
         )
@@ -202,6 +249,12 @@ class LewishamClient:
         try:
             return response.json()
         except ValueError as exc:
+            logger.error(
+                "upstream_contract_drift",
+                endpoint=endpoint_name,
+                status_code=response.status_code,
+                response_size_bytes=len(response.content),
+            )
             raise UpstreamScraperChangedError(
                 f"{endpoint_name} returned invalid JSON."
             ) from exc
@@ -209,6 +262,7 @@ class LewishamClient:
     @staticmethod
     def _parse_address_candidate(payload: object) -> AddressCandidate:
         if not isinstance(payload, dict):
+            logger.error("upstream_contract_drift", endpoint="AddressFinder")
             raise UpstreamScraperChangedError(
                 "AddressFinder returned an address item that is not an object."
             )
@@ -217,11 +271,13 @@ class LewishamClient:
         title_value: object = payload.get("Title")
 
         if isinstance(uprn_value, bool) or not isinstance(uprn_value, int | str):
+            logger.error("upstream_contract_drift", endpoint="AddressFinder")
             raise UpstreamScraperChangedError(
                 "AddressFinder address item is missing a usable Uprn value."
             )
 
         if not isinstance(title_value, str):
+            logger.error("upstream_contract_drift", endpoint="AddressFinder")
             raise UpstreamScraperChangedError(
                 "AddressFinder address item is missing a Title value."
             )
@@ -229,8 +285,13 @@ class LewishamClient:
         uprn = str(uprn_value).strip()
         title = " ".join(title_value.replace("\xa0", " ").split())
         if not uprn or not title:
+            logger.error("upstream_contract_drift", endpoint="AddressFinder")
             raise UpstreamScraperChangedError(
                 "AddressFinder returned an address item with empty fields."
             )
 
         return AddressCandidate(uprn=uprn, title=title)
+
+
+def _duration_ms(start_time: float) -> float:
+    return round((perf_counter() - start_time) * 1000, 2)

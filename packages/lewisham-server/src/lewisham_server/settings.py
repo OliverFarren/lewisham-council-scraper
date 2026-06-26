@@ -13,6 +13,7 @@ from lewisham_server.clients.lewisham.config import (
 )
 
 LogLevel = Literal["critical", "error", "warning", "info", "debug", "trace"]
+LogFormat = Literal["text", "json"]
 
 
 class Settings(BaseSettings):
@@ -41,6 +42,9 @@ class Settings(BaseSettings):
     )
     workers: int = Field(default=1, ge=1)
     log_level: LogLevel = "info"
+    log_format: LogFormat = "text"
+    log_include_raw_upstream: bool = False
+    log_raw_upstream_max_chars: int = Field(default=4_096, ge=0)
 
     upstream_base_url: str = BASE_URL
     upstream_collection_page_url: str = COLLECTION_PAGE_URL

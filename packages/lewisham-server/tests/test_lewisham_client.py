@@ -16,10 +16,16 @@ from lewisham_server.domain.errors import (
     UpstreamScraperChangedError,
     UpstreamUnavailableError,
 )
+from lewisham_server.logging_config import configure_logging
+from lewisham_server.settings import Settings
 
 
 def fixed_clock() -> datetime:
     return datetime(2026, 6, 26, 12, 0, tzinfo=UTC)
+
+
+def json_events(output: str) -> list[dict[str, object]]:
+    return [json.loads(line) for line in output.splitlines()]
 
 
 @pytest.mark.asyncio
@@ -48,6 +54,39 @@ async def test_lookup_addresses_returns_normalised_candidates() -> None:
     assert requests[0].url.params["postcodeOrStreet"] == "SE6 1SQ"
     assert requests[0].url.params["national"] == "False"
     assert requests[0].headers["user-agent"] == USER_AGENT
+
+
+@pytest.mark.asyncio
+async def test_client_logs_upstream_request_and_response_metadata(capsys) -> None:
+    configure_logging(Settings(log_format="json", log_level="debug"))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["postcodeOrStreet"] == "SE6 1SQ"
+        return httpx.Response(
+            200,
+            json=[{"Uprn": 100000000001, "Title": "1 Example Street"}],
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = LewishamClient(http_client=http, clock=fixed_clock)
+        await client.lookup_addresses("SE6 1SQ")
+
+    captured = capsys.readouterr()
+    events = json_events(captured.out)
+    request_event = next(
+        event for event in events if event["event"] == "upstream_request"
+    )
+    response_event = next(
+        event for event in events if event["event"] == "upstream_response"
+    )
+
+    assert request_event["endpoint"] == "AddressFinder"
+    assert request_event["upstream_path"] == ADDRESS_FINDER_PATH
+    assert response_event["status_code"] == 200
+    assert response_event["response_size_bytes"] > 0
+    assert "SE6 1SQ" not in captured.out
+    assert "100000000001" not in captured.out
+    assert "1 Example Street" not in captured.out
 
 
 @pytest.mark.asyncio
@@ -130,6 +169,29 @@ async def test_lookup_addresses_rejects_malformed_payload() -> None:
         client = LewishamClient(http_client=http, clock=fixed_clock)
         with pytest.raises(UpstreamScraperChangedError):
             await client.lookup_addresses("SE6 1SQ")
+
+
+@pytest.mark.asyncio
+async def test_client_logs_upstream_contract_drift_without_payload(capsys) -> None:
+    configure_logging(Settings(log_format="json", log_level="debug"))
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=[{"Uprn": 100000000001}])
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = LewishamClient(http_client=http, clock=fixed_clock)
+        with pytest.raises(UpstreamScraperChangedError):
+            await client.lookup_addresses("SE6 1SQ")
+
+    captured = capsys.readouterr()
+    events = json_events(captured.err)
+    drift_event = next(
+        event for event in events if event["event"] == "upstream_contract_drift"
+    )
+
+    assert drift_event["endpoint"] == "AddressFinder"
+    assert "SE6 1SQ" not in captured.err
+    assert "100000000001" not in captured.err
 
 
 @pytest.mark.asyncio

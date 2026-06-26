@@ -1,3 +1,4 @@
+import json
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, date, datetime
@@ -19,7 +20,9 @@ from lewisham_server.domain.models import (
     CollectionEntry,
     CollectionSchedule,
 )
+from lewisham_server.logging_config import configure_logging
 from lewisham_server.main import app
+from lewisham_server.settings import Settings
 
 
 class FakeBinsService:
@@ -100,6 +103,43 @@ def test_get_collection_schedule_returns_schedule() -> None:
         "source_url": "https://lewisham.gov.uk/example",
         "fetched_at": "2026-06-26T12:00:00Z",
     }
+
+
+def test_request_logs_use_route_template_without_sensitive_values(capsys) -> None:
+    configure_logging(Settings(log_format="json", log_level="info"))
+    service = FakeBinsService()
+
+    with api_client(service) as client:
+        response = client.get("/bins/addresses/100000000001/collections")
+
+    assert response.status_code == 200
+    captured = capsys.readouterr()
+    events = [json.loads(line) for line in captured.out.splitlines()]
+    request_event = next(event for event in events if event["event"] == "http_request")
+
+    assert request_event["method"] == "GET"
+    assert request_event["route"] == "/bins/addresses/{uprn}/collections"
+    assert request_event["status_code"] == 200
+    assert "100000000001" not in captured.out
+    assert "1 Example Street" not in captured.out
+
+
+def test_request_logs_omit_query_values(capsys) -> None:
+    configure_logging(Settings(log_format="json", log_level="info"))
+    service = FakeBinsService()
+
+    with api_client(service) as client:
+        response = client.get("/bins/addresses", params={"postcode": "SE6 1SQ"})
+
+    assert response.status_code == 200
+    captured = capsys.readouterr()
+    events = [json.loads(line) for line in captured.out.splitlines()]
+    request_event = next(event for event in events if event["event"] == "http_request")
+
+    assert request_event["method"] == "GET"
+    assert request_event["route"] == "/bins/addresses"
+    assert request_event["status_code"] == 200
+    assert "SE6 1SQ" not in captured.out
 
 
 def test_bins_root_placeholder_is_removed() -> None:
