@@ -56,7 +56,8 @@ class Settings(BaseSettings):
     )
 
     cache_schedule_ttl_seconds: int = Field(default=86_400, ge=1)
-    cache_address_ttl_seconds: int = Field(default=604_800, ge=1)
+    cache_address_search_ttl_seconds: int = Field(default=604_800, ge=1)
+    cache_uprn_ttl_seconds: int = Field(default=2_592_000, ge=1)
     cache_negative_ttl_seconds: int = Field(default=3_600, ge=1)
 
 

@@ -3,17 +3,17 @@ from typing import Annotated, cast
 
 from fastapi import Depends, Request
 
-from lewisham_server.services import BinsService
+from lewisham_server.services import LewishamService
 
 
-async def get_bins_service(request: Request) -> AsyncIterator[BinsService]:
-    """Yield the app-lifecycle bins service stored on FastAPI application state."""
+async def get_lewisham_service(request: Request) -> AsyncIterator[LewishamService]:
+    """Yield the app-lifecycle Lewisham service stored on FastAPI application state."""
 
-    service = getattr(request.app.state, "bins_service", None)
+    service = getattr(request.app.state, "lewisham_service", None)
     if service is None:
-        raise RuntimeError("BinsService has not been initialised on app state.")
+        raise RuntimeError("LewishamService has not been initialised on app state.")
 
-    yield cast(BinsService, service)
+    yield cast(LewishamService, service)
 
 
-BinsServiceDependency = Annotated[BinsService, Depends(get_bins_service)]
+LewishamServiceDependency = Annotated[LewishamService, Depends(get_lewisham_service)]

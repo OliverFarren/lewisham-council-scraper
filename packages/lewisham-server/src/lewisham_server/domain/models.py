@@ -4,7 +4,7 @@ from datetime import date, datetime
 
 @dataclass(frozen=True, slots=True)
 class AddressCandidate:
-    """A UPRN and human-readable address returned by Lewisham AddressFinder."""
+    """A UPRN and human-readable address label for a selectable property."""
 
     uprn: str
     title: str

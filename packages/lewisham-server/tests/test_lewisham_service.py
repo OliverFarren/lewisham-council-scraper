@@ -7,7 +7,7 @@ from lewisham_server.clients.lewisham import CollectionScheduleRaw
 from lewisham_server.domain.errors import CollectionScheduleNotFoundError
 from lewisham_server.domain.models import AddressCandidate
 from lewisham_server.logging_config import configure_logging
-from lewisham_server.services import BinsService
+from lewisham_server.services import LewishamService
 from lewisham_server.settings import Settings
 from lewisham_server.storage import MemoryTtlCache
 
@@ -87,7 +87,7 @@ def json_events(output: str) -> list[dict[str, object]]:
 async def test_service_caches_successful_schedule() -> None:
     clock = MutableClock()
     client = FakeLewishamClient()
-    service = BinsService(client=client, clock=clock)
+    service = LewishamService(client=client, clock=clock)
 
     first = await service.get_collection_schedule("100000000001")
     second = await service.get_collection_schedule("100000000001")
@@ -102,7 +102,7 @@ async def test_lookup_addresses_caches_results_and_populates_address_cache() -> 
     clock = MutableClock()
     address = AddressCandidate(uprn="100000000001", title="1 Example Street")
     client = FakeLewishamClient(addresses=[address])
-    service = BinsService(client=client, clock=clock)
+    service = LewishamService(client=client, clock=clock)
 
     addresses = await service.lookup_addresses("SE6 1SQ")
     schedule = await service.get_collection_schedule("100000000001")
@@ -120,7 +120,7 @@ async def test_lookup_addresses_logs_safe_cache_and_completion_events(capsys) ->
     clock = MutableClock()
     address = AddressCandidate(uprn="100000000001", title="1 Example Street")
     client = FakeLewishamClient(addresses=[address])
-    service = BinsService(client=client, clock=clock)
+    service = LewishamService(client=client, clock=clock)
 
     await service.lookup_addresses("SE6 1SQ")
     await service.lookup_addresses("SE6 1SQ")
@@ -143,7 +143,7 @@ async def test_get_collection_schedule_logs_safe_completion_event(capsys) -> Non
     configure_logging(Settings(log_format="json", log_level="debug"))
     clock = MutableClock()
     client = FakeLewishamClient()
-    service = BinsService(client=client, clock=clock)
+    service = LewishamService(client=client, clock=clock)
 
     await service.get_collection_schedule("100000000001")
 
@@ -163,7 +163,7 @@ async def test_get_collection_schedule_logs_safe_completion_event(capsys) -> Non
 async def test_lookup_addresses_caches_negative_results() -> None:
     clock = MutableClock()
     client = FakeLewishamClient(addresses=[])
-    service = BinsService(client=client, clock=clock)
+    service = LewishamService(client=client, clock=clock)
 
     first = await service.lookup_addresses("INVALID")
     second = await service.lookup_addresses("INVALID")
@@ -177,7 +177,7 @@ async def test_lookup_addresses_caches_negative_results() -> None:
 async def test_service_caches_negative_schedule_results() -> None:
     clock = MutableClock()
     client = FakeLewishamClient(raw_body=empty_schedule_body())
-    service = BinsService(client=client, clock=clock)
+    service = LewishamService(client=client, clock=clock)
 
     with pytest.raises(CollectionScheduleNotFoundError):
         await service.get_collection_schedule("100000000001")
@@ -193,7 +193,7 @@ async def test_service_caches_negative_schedule_results() -> None:
 async def test_schedule_cache_expires_after_ttl() -> None:
     clock = MutableClock()
     client = FakeLewishamClient()
-    service = BinsService(client=client, clock=clock)
+    service = LewishamService(client=client, clock=clock)
 
     await service.get_collection_schedule("100000000001")
     clock.advance(timedelta(hours=25))

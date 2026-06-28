@@ -3,27 +3,9 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field
 
 from lewisham_server.domain.models import (
-    AddressCandidate,
     CollectionEntry,
     CollectionSchedule,
 )
-
-
-class AddressCandidateResponse(BaseModel):
-    """A selectable address candidate for a bin collection lookup."""
-
-    uprn: str = Field(
-        description="Unique Property Reference Number for the address.",
-        examples=["100000000001"],
-    )
-    title: str = Field(
-        description="Human-readable address label returned by Lewisham.",
-        examples=["1 Example Street, Catford, SE6 1SQ, London"],
-    )
-
-    @classmethod
-    def from_domain(cls, address: AddressCandidate) -> "AddressCandidateResponse":
-        return cls(uprn=address.uprn, title=address.title)
 
 
 class CollectionEntryResponse(BaseModel):

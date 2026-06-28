@@ -11,7 +11,7 @@ class InvalidUprnError(ValueError, DomainError):
 
 
 class AddressNotFoundError(DomainError):
-    """Raised when Lewisham cannot resolve an address for the requested input."""
+    """Raised when no address can be resolved for the requested input."""
 
 
 class CollectionScheduleNotFoundError(DomainError):

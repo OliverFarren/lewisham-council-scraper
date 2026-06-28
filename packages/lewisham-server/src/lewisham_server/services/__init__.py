@@ -1,3 +1,3 @@
-from lewisham_server.services.bins_service import BinsService
+from lewisham_server.services.lewisham_service import LewishamService
 
-__all__ = ["BinsService"]
+__all__ = ["LewishamService"]

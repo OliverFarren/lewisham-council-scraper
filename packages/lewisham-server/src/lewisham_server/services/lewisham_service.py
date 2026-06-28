@@ -20,7 +20,8 @@ from lewisham_server.domain.models import (
 from lewisham_server.storage import MemoryTtlCache, TtlCache
 
 SCHEDULE_CACHE_TTL = timedelta(hours=24)
-ADDRESS_CACHE_TTL = timedelta(days=7)
+ADDRESS_SEARCH_CACHE_TTL = timedelta(days=7)
+UPRN_CACHE_TTL = timedelta(days=30)
 NEGATIVE_CACHE_TTL = timedelta(hours=1)
 logger = structlog.get_logger(__name__)
 
@@ -42,8 +43,8 @@ class LewishamSource(Protocol):
     async def aclose(self) -> None: ...
 
 
-class BinsService:
-    """Coordinate Lewisham address lookup, schedule parsing, and cache policy."""
+class LewishamService:
+    """Coordinate address resolution, collection schedule parsing, and cache policy."""
 
     def __init__(
         self,
@@ -55,7 +56,8 @@ class BinsService:
         schedule_cache: TtlCache[str, CollectionSchedule] | None = None,
         negative_cache: TtlCache[str, bool] | None = None,
         schedule_cache_ttl: timedelta = SCHEDULE_CACHE_TTL,
-        address_cache_ttl: timedelta = ADDRESS_CACHE_TTL,
+        address_search_cache_ttl: timedelta = ADDRESS_SEARCH_CACHE_TTL,
+        uprn_cache_ttl: timedelta = UPRN_CACHE_TTL,
         negative_cache_ttl: timedelta = NEGATIVE_CACHE_TTL,
         clock: Callable[[], datetime] = _default_clock,
     ) -> None:
@@ -66,11 +68,12 @@ class BinsService:
         self._schedule_cache = schedule_cache or MemoryTtlCache(clock)
         self._negative_cache = negative_cache or MemoryTtlCache(clock)
         self._schedule_cache_ttl = schedule_cache_ttl
-        self._address_cache_ttl = address_cache_ttl
+        self._address_search_cache_ttl = address_search_cache_ttl
+        self._uprn_cache_ttl = uprn_cache_ttl
         self._negative_cache_ttl = negative_cache_ttl
 
     async def lookup_addresses(self, postcode_or_street: str) -> list[AddressCandidate]:
-        """Resolve user-entered address text into Lewisham address candidates."""
+        """Resolve user-entered address text into address candidates with UPRNs."""
 
         search_key = self._key("address-search", postcode_or_street)
         if self._negative_cache.get(search_key) is True:
@@ -106,7 +109,7 @@ class BinsService:
         self._address_search_cache.set(
             search_key,
             list(addresses),
-            self._address_cache_ttl,
+            self._address_search_cache_ttl,
         )
         logger.debug(
             "cache_store",
@@ -118,7 +121,7 @@ class BinsService:
             self._address_cache.set(
                 self._key("address", address.uprn),
                 address,
-                self._address_cache_ttl,
+                self._uprn_cache_ttl,
             )
             logger.debug("cache_store", namespace="address", cache_type="positive")
 
@@ -206,9 +209,7 @@ class BinsService:
         if self._negative_cache.get(address_key) is True:
             logger.debug("negative_cache_hit", namespace="address")
             logger.warning("address_lookup_missing")
-            raise AddressNotFoundError(
-                f"No Lewisham address found for UPRN {uprn.strip()}."
-            )
+            raise AddressNotFoundError(f"No address found for UPRN {uprn.strip()}.")
 
         cached_address = self._address_cache.get(address_key)
         if cached_address is not None:
@@ -224,7 +225,7 @@ class BinsService:
             logger.warning("address_lookup_missing")
             raise
 
-        self._address_cache.set(address_key, address, self._address_cache_ttl)
+        self._address_cache.set(address_key, address, self._uprn_cache_ttl)
         logger.debug("cache_store", namespace="address", cache_type="positive")
         return address
 
