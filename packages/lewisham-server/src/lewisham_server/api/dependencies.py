@@ -2,8 +2,7 @@ from collections.abc import AsyncIterator
 from typing import Annotated, cast
 
 from fastapi import Depends, Request
-
-from lewisham_server.services import LewishamService
+from lewisham_client.services import LewishamService
 
 
 async def get_lewisham_service(request: Request) -> AsyncIterator[LewishamService]:

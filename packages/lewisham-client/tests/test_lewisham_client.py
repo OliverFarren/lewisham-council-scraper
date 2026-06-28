@@ -3,21 +3,20 @@ from datetime import UTC, datetime
 
 import httpx
 import pytest
+from conftest import configure_test_logging
 
-from lewisham_server.clients.lewisham import LewishamClient
-from lewisham_server.clients.lewisham.config import (
+from lewisham_client.clients.lewisham import LewishamClient
+from lewisham_client.clients.lewisham.config import (
     ADDRESS_FINDER_PATH,
     ROUNDS_INFORMATION_PATH,
     USER_AGENT,
 )
-from lewisham_server.domain.errors import (
+from lewisham_client.domain.errors import (
     InvalidAddressSearchError,
     InvalidUprnError,
     UpstreamScraperChangedError,
     UpstreamUnavailableError,
 )
-from lewisham_server.logging_config import configure_logging
-from lewisham_server.settings import Settings
 
 
 def fixed_clock() -> datetime:
@@ -58,7 +57,7 @@ async def test_lookup_addresses_returns_normalised_candidates() -> None:
 
 @pytest.mark.asyncio
 async def test_client_logs_upstream_request_and_response_metadata(capsys) -> None:
-    configure_logging(Settings(log_format="json", log_level="debug"))
+    configure_test_logging("debug")
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.params["postcodeOrStreet"] == "SE6 1SQ"
@@ -173,7 +172,7 @@ async def test_lookup_addresses_rejects_malformed_payload() -> None:
 
 @pytest.mark.asyncio
 async def test_client_logs_upstream_contract_drift_without_payload(capsys) -> None:
-    configure_logging(Settings(log_format="json", log_level="debug"))
+    configure_test_logging("debug")
 
     def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=[{"Uprn": 100000000001}])

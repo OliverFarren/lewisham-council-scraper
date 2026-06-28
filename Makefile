@@ -1,8 +1,10 @@
 .DEFAULT_GOAL := help
 
 UV ?= uv
+CLIENT_PACKAGE := lewisham-client
 SERVER_PACKAGE := lewisham-server
 MCP_PACKAGE := lewisham-mcp
+CLIENT_DIR := packages/$(CLIENT_PACKAGE)
 SERVER_DIR := packages/$(SERVER_PACKAGE)
 MCP_DIR := packages/$(MCP_PACKAGE)
 
@@ -35,7 +37,11 @@ format-check: ## Check workspace formatting with Ruff.
 	$(UV) run ruff format --check .
 
 .PHONY: typecheck
-typecheck: typecheck-server typecheck-mcp ## Run mypy for every package.
+typecheck: typecheck-client typecheck-server typecheck-mcp ## Run mypy for every package.
+
+.PHONY: typecheck-client
+typecheck-client: ## Run mypy for lewisham-client.
+	cd $(CLIENT_DIR) && $(UV) run --package $(CLIENT_PACKAGE) mypy src/
 
 .PHONY: typecheck-server
 typecheck-server: ## Run mypy for lewisham-server.
@@ -46,7 +52,11 @@ typecheck-mcp: ## Run mypy for lewisham-mcp.
 	cd $(MCP_DIR) && $(UV) run --package $(MCP_PACKAGE) mypy src/
 
 .PHONY: test
-test: test-server test-mcp ## Run pytest for every package.
+test: test-client test-server test-mcp ## Run pytest for every package.
+
+.PHONY: test-client
+test-client: ## Run lewisham-client tests.
+	cd $(CLIENT_DIR) && $(UV) run --package $(CLIENT_PACKAGE) pytest
 
 .PHONY: test-server
 test-server: ## Run lewisham-server tests.

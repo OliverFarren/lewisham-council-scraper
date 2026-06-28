@@ -1,14 +1,32 @@
 # lewisham-council-scraper
 
-A monorepo for scraping and serving Lewisham Council data.
+A monorepo for accessing Lewisham Council civic data. The core is a reusable
+Python client that speaks directly to Lewisham's undocumented HTTP endpoints.
+FastAPI and MCP adapters are optional layers on top.
+
+## Architecture
+
+Lewisham's waste collection pages are backed by stateless HTTP endpoints that
+require no browser, cookies, or authentication. That makes the scraper light
+enough to embed in another Python application, which removes the need for a
+separate service as a prerequisite for every consumer.
+
+```
+lewisham-client          ← reusable Python client (HTTP, parsing, domain models)
+    ├── lewisham-server  ← optional FastAPI adapter (REST API, Docker image)
+    ├── lewisham-mcp     ← optional MCP adapter (tool protocol for AI assistants)
+    └── (Home Assistant) ← planned: custom integration using the client directly
+```
 
 ## Structure
 
 ```
 lewisham-council-scraper/
 ├── packages/
-│   ├── lewisham-server/   # FastAPI application exposing council data
-│   └── lewisham-mcp/      # MCP server backed by lewisham-server
+│   ├── lewisham-client/   # Framework-neutral Python client (the core)
+│   ├── lewisham-server/   # FastAPI REST adapter
+│   └── lewisham-mcp/      # MCP adapter backed by lewisham-server
+├── docs/                  # Design documents and spike findings
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml         # Lint, typecheck, test on push/PR
@@ -19,111 +37,56 @@ lewisham-council-scraper/
 
 ## Packages
 
+### lewisham-client
+
+The reusable core. Provides asynchronous address resolution and waste
+collection schedule retrieval for any Lewisham UPRN. Has no dependency on
+FastAPI, Home Assistant, MCP, or any web framework.
+
+See [`packages/lewisham-client/README.md`](packages/lewisham-client/README.md).
+
 ### lewisham-server
 
-FastAPI application that scrapes and serves Lewisham Council data via a REST API.
+FastAPI REST API that exposes the client over HTTP. Useful when a non-Python
+consumer needs the data, or when several independent processes should share one
+upstream cache. Distributed as a Docker image.
 
-- `GET /bins/addresses?postcode={postcode}` - address candidates for a bin lookup
-- `GET /bins/addresses/{uprn}/collections` - bin collection schedule for one UPRN
-
-Configuration is environment-driven. Service-specific variables use the
-`LEWISHAM_SERVER_` prefix; `PORT` is also accepted because many container
-platforms provide it automatically.
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `LEWISHAM_SERVER_HOST` | `0.0.0.0` | Bind host used by the bundled uvicorn runner. |
-| `LEWISHAM_SERVER_PORT` | `8000` | Bind port. Takes precedence over `PORT`. |
-| `PORT` | `8000` | Common platform port fallback. |
-| `LEWISHAM_SERVER_WORKERS` | `1` | Number of uvicorn worker processes. |
-| `LEWISHAM_SERVER_LOG_LEVEL` | `info` | Application and Uvicorn log level. |
-| `LEWISHAM_SERVER_LOG_FORMAT` | `text` | Log renderer: `text` for terminals or `json` for aggregators. |
-| `LEWISHAM_SERVER_LOG_INCLUDE_RAW_UPSTREAM` | `false` | Include truncated raw upstream payload previews in parser drift logs. Requires debug logging. |
-| `LEWISHAM_SERVER_LOG_RAW_UPSTREAM_MAX_CHARS` | `4096` | Maximum characters included in opt-in raw upstream payload previews. |
-| `LEWISHAM_SERVER_UPSTREAM_BASE_URL` | `https://lewisham.gov.uk` | Lewisham upstream origin. |
-| `LEWISHAM_SERVER_UPSTREAM_COLLECTION_PAGE_URL` | Lewisham bin collection page | Public page that backs the scraped endpoint. |
-| `LEWISHAM_SERVER_UPSTREAM_ROUNDS_INFORMATION_ITEM_GUID` | Sitecore item GUID from the spike | Sitecore rendering ID used by the rounds-information endpoint. |
-| `LEWISHAM_SERVER_UPSTREAM_USER_AGENT` | `lewisham-council-scraper/0.1` | User-Agent sent to Lewisham. |
-| `LEWISHAM_SERVER_UPSTREAM_REQUEST_TIMEOUT_SECONDS` | `10.0` | Outbound request timeout. |
-| `LEWISHAM_SERVER_CACHE_SCHEDULE_TTL_SECONDS` | `86400` | Positive schedule cache TTL. |
-| `LEWISHAM_SERVER_CACHE_ADDRESS_TTL_SECONDS` | `604800` | Address cache TTL. |
-| `LEWISHAM_SERVER_CACHE_NEGATIVE_TTL_SECONDS` | `3600` | Negative cache TTL. |
-
-#### Logging
-
-Logs are written to the container streams: `DEBUG` and `INFO` go to stdout,
-while `WARNING`, `ERROR`, and `CRITICAL` go to stderr. Uvicorn access logs are
-disabled in favour of one sanitized `http_request` event per request from the
-application.
-
-Text logs are intended for humans:
-
-```text
-2026-06-26T19:30:00Z [info     ] http_request                  [lewisham_server.api.middleware] method=GET route=/bins/addresses/{uprn}/collections status_code=200 duration_ms=12.34
-```
-
-JSON logs are intended for Docker log processors such as Vector, Promtail, or
-ELK:
-
-```json
-{"method":"GET","route":"/bins/addresses/{uprn}/collections","status_code":200,"duration_ms":12.34,"event":"http_request","logger":"lewisham_server.api.middleware","level":"info","timestamp":"2026-06-26T19:30:00Z"}
-```
-
-By default, logs do not include raw UPRNs, addresses, postcode query values,
-client IPs, or raw upstream bodies. If Lewisham changes its response shape and a
-parser drift error appears, set both of these temporarily:
-
-```bash
-LEWISHAM_SERVER_LOG_LEVEL=debug
-LEWISHAM_SERVER_LOG_INCLUDE_RAW_UPSTREAM=true
-```
-
-The drift log will include payload size, SHA-256, and a truncated payload
-preview suitable for a GitHub issue. Turn the raw payload option off after
-capturing the failing response.
+See [`packages/lewisham-server/README.md`](packages/lewisham-server/README.md).
 
 ### lewisham-mcp
 
-MCP (Model Context Protocol) server that exposes lewisham-server data as tools for AI assistants.
+MCP server that exposes lewisham-server data as tools for AI assistants.
+Requires a running lewisham-server instance.
 
 ## Development
 
-Install [uv](https://docs.astral.sh/uv/), then:
+Install [uv](https://docs.astral.sh/uv/), then use the top-level Makefile:
 
 ```bash
-# Install all workspace packages and their dev dependencies
-uv sync --all-packages
-
-# Run the API server
-uv run --package lewisham-server uvicorn lewisham_server.main:app --reload
-
-# Run the MCP server
-uv run --package lewisham-mcp python -m lewisham_mcp.server
-
-# Lint
-uv run ruff check .
-uv run ruff format .
-
-# Type check (per package)
-cd packages/lewisham-server && uv run mypy src/
-cd packages/lewisham-mcp   && uv run mypy src/
-
-# Test (per package)
-cd packages/lewisham-server && uv run pytest
-cd packages/lewisham-mcp   && uv run pytest
+make install      # install all workspace packages and dev dependencies
+make check        # lint, format check, typecheck, test (all packages)
+make server-dev   # run the API server with hot reload
 ```
 
-The same workflow is also available through the top-level `Makefile`:
+Focused commands:
 
 ```bash
-make install
-make check
-make server-dev
+make lint
+make format
+make typecheck-client
+make typecheck-server
+make test-client
+make test-server
 ```
 
 ## Docker
 
-Each package has a Dockerfile built from the repo root:
+```bash
+make docker-build-server
+make docker-build-mcp
+```
+
+Or directly:
 
 ```bash
 docker build -f packages/lewisham-server/Dockerfile -t lewisham-server .

@@ -12,6 +12,7 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "lewisham-client",
     "lewisham-mcp",
     "lewisham-server",
 ]
@@ -357,6 +358,36 @@ wheels = [
 ]
 
 [[package]]
+name = "lewisham-client"
+source = { editable = "packages/lewisham-client" }
+dependencies = [
+    { name = "httpx" },
+    { name = "structlog" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "structlog", specifier = ">=26.1.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.13.0" },
+    { name = "pytest", specifier = ">=8.3.0" },
+    { name = "pytest-asyncio", specifier = ">=0.24.0" },
+    { name = "ruff", specifier = ">=0.8.0" },
+]
+
+[[package]]
 name = "lewisham-mcp"
 version = "0.1.0"
 source = { editable = "packages/lewisham-mcp" }
@@ -389,11 +420,10 @@ dev = [
 
 [[package]]
 name = "lewisham-server"
-version = "0.1.0"
 source = { editable = "packages/lewisham-server" }
 dependencies = [
     { name = "fastapi" },
-    { name = "httpx" },
+    { name = "lewisham-client" },
     { name = "pydantic-settings" },
     { name = "rich" },
     { name = "structlog" },
@@ -411,7 +441,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "lewisham-client", editable = "packages/lewisham-client" },
     { name = "pydantic-settings", specifier = ">=2.7.0" },
     { name = "rich", specifier = ">=15.0.0" },
     { name = "structlog", specifier = ">=26.1.0" },

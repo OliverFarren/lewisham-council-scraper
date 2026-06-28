@@ -1,19 +1,26 @@
 [project]
 name = "lewisham-server"
-version = "0.1.0"
-requires-python = ">=3.13"
+dynamic = ["version"]
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
-    "httpx>=0.27.0",
+    "lewisham-client",
     "pydantic-settings>=2.7.0",
     "rich>=15.0.0",
     "structlog>=26.1.0",
     "uvicorn[standard]>=0.32.0",
 ]
 
+[tool.uv.sources]
+lewisham-client = { workspace = true }
+
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.1.0"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lewisham_server"]
@@ -28,14 +35,14 @@ dev = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py313"
+target-version = "py312"
 src = ["src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.12"
 strict = true
 mypy_path = "src"
 

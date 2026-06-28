@@ -5,7 +5,7 @@ from time import perf_counter
 import httpx
 import structlog
 
-from lewisham_server.clients.lewisham.config import (
+from lewisham_client.clients.lewisham.config import (
     ADDRESS_FINDER_PATH,
     BASE_URL,
     COLLECTION_PAGE_URL,
@@ -14,15 +14,15 @@ from lewisham_server.clients.lewisham.config import (
     ROUNDS_INFORMATION_PATH,
     USER_AGENT,
 )
-from lewisham_server.clients.lewisham.models import CollectionScheduleRaw
-from lewisham_server.domain.errors import (
+from lewisham_client.clients.lewisham.models import CollectionScheduleRaw
+from lewisham_client.domain.errors import (
     AddressNotFoundError,
     InvalidAddressSearchError,
     InvalidUprnError,
     UpstreamScraperChangedError,
     UpstreamUnavailableError,
 )
-from lewisham_server.domain.models import AddressCandidate
+from lewisham_client.domain.models import AddressCandidate
 
 logger = structlog.get_logger(__name__)
 

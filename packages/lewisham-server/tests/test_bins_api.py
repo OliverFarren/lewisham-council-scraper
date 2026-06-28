@@ -5,19 +5,19 @@ from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-
-from lewisham_server.api.dependencies import get_lewisham_service
-from lewisham_server.domain.errors import (
+from lewisham_client.domain.errors import (
     AddressNotFoundError,
     CollectionScheduleNotFoundError,
     InvalidUprnError,
     UpstreamScraperChangedError,
     UpstreamUnavailableError,
 )
-from lewisham_server.domain.models import (
+from lewisham_client.domain.models import (
     CollectionEntry,
     CollectionSchedule,
 )
+
+from lewisham_server.api.dependencies import get_lewisham_service
 from lewisham_server.logging_config import configure_logging
 from lewisham_server.main import app
 from lewisham_server.settings import Settings

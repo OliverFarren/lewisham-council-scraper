@@ -8,9 +8,9 @@ boundaries, and tests that document behavior.
 
 - Follow `docs/design_002_client_first_architecture.md` for the accepted target
   architecture and dependency direction.
-- The reusable, framework-neutral Python client is the core capability.
-- `packages/lewisham-server` is an optional FastAPI adapter. It currently
-  contains code that will move into the client during the migration.
+- `packages/lewisham-client` is the reusable, framework-neutral Python client
+  and the core capability. All other packages depend on it.
+- `packages/lewisham-server` is an optional FastAPI adapter over the client.
 - `packages/lewisham-mcp` is an optional MCP adapter. Local MCP use should
   consume the client directly rather than require the REST service.
 - A Home Assistant integration should consume the client directly and must not
@@ -68,7 +68,9 @@ Useful focused commands:
 ```bash
 make lint
 make format-check
+make typecheck-client
 make typecheck-server
+make test-client
 make test-server
 make docker-build-server
 ```

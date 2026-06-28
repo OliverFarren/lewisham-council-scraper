@@ -1,12 +1,11 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
-
-from lewisham_server.domain.models import (
+from lewisham_client.domain.models import (
     CollectionEntry,
     CollectionSchedule,
 )
+from pydantic import BaseModel, Field
 
 
 class CollectionEntryResponse(BaseModel):

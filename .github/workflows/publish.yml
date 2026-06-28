@@ -1,14 +1,15 @@
-name: Publish Docker Images
+name: Publish
 
 on:
   push:
     tags:
       - "v*"
 
-# Uncomment and configure when ready to publish to ghcr.io.
+# Docker publishing: uncomment and configure when ready to push to ghcr.io.
+# Requires the lewisham-server and lewisham-mcp Dockerfiles to be production-ready.
 #
 # jobs:
-#   build-and-push:
+#   docker:
 #     name: Build & push (${{ matrix.package }})
 #     runs-on: ubuntu-latest
 #     permissions:
@@ -46,9 +47,37 @@ on:
 #           tags: ${{ steps.meta.outputs.tags }}
 #           labels: ${{ steps.meta.outputs.labels }}
 
-# Placeholder job so the workflow file is valid while the above is commented out.
+# PyPI publishing uses Trusted Publisher (OIDC) — no stored secrets required.
+# Before the first release, configure a Trusted Publisher on PyPI:
+#   Publisher: GitHub Actions
+#   Repository owner: OliverFarren
+#   Repository name: lewisham-council-scraper
+#   Workflow filename: publish.yml
+#   Environment name: pypi
+# Then create a "pypi" environment in GitHub repository Settings → Environments.
+
 jobs:
-  placeholder:
+  publish-pypi:
+    name: Publish lewisham-client to PyPI
     runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - run: echo "publish workflow triggered for ${{ github.ref_name }} — uncomment jobs above to enable"
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Build
+        run: uv build --package lewisham-client
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

@@ -1,16 +1,16 @@
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, status
-
-from lewisham_server.api.dependencies import LewishamServiceDependency
-from lewisham_server.api.schemas.bins import CollectionScheduleResponse
-from lewisham_server.domain.errors import (
+from lewisham_client.domain.errors import (
     AddressNotFoundError,
     CollectionScheduleNotFoundError,
     InvalidUprnError,
     UpstreamScraperChangedError,
     UpstreamUnavailableError,
 )
+
+from lewisham_server.api.dependencies import LewishamServiceDependency
+from lewisham_server.api.schemas.bins import CollectionScheduleResponse
 
 router = APIRouter()
 

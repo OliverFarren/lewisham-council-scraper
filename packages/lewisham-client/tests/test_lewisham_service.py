@@ -2,14 +2,13 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from conftest import configure_test_logging
 
-from lewisham_server.clients.lewisham import CollectionScheduleRaw
-from lewisham_server.domain.errors import CollectionScheduleNotFoundError
-from lewisham_server.domain.models import AddressCandidate
-from lewisham_server.logging_config import configure_logging
-from lewisham_server.services import LewishamService
-from lewisham_server.settings import Settings
-from lewisham_server.storage import MemoryTtlCache
+from lewisham_client.clients.lewisham import CollectionScheduleRaw
+from lewisham_client.domain.errors import CollectionScheduleNotFoundError
+from lewisham_client.domain.models import AddressCandidate
+from lewisham_client.services import LewishamService
+from lewisham_client.storage import MemoryTtlCache
 
 
 class MutableClock:
@@ -116,7 +115,7 @@ async def test_lookup_addresses_caches_results_and_populates_address_cache() -> 
 
 @pytest.mark.asyncio
 async def test_lookup_addresses_logs_safe_cache_and_completion_events(capsys) -> None:
-    configure_logging(Settings(log_format="json", log_level="debug"))
+    configure_test_logging("debug")
     clock = MutableClock()
     address = AddressCandidate(uprn="100000000001", title="1 Example Street")
     client = FakeLewishamClient(addresses=[address])
@@ -140,7 +139,7 @@ async def test_lookup_addresses_logs_safe_cache_and_completion_events(capsys) ->
 
 @pytest.mark.asyncio
 async def test_get_collection_schedule_logs_safe_completion_event(capsys) -> None:
-    configure_logging(Settings(log_format="json", log_level="debug"))
+    configure_test_logging("debug")
     clock = MutableClock()
     client = FakeLewishamClient()
     service = LewishamService(client=client, clock=clock)

@@ -1,6 +1,5 @@
+from lewisham_client.domain.models import AddressCandidate
 from pydantic import BaseModel, Field
-
-from lewisham_server.domain.models import AddressCandidate
 
 
 class AddressCandidateResponse(BaseModel):

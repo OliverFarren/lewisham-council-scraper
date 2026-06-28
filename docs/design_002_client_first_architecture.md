@@ -244,15 +244,17 @@ its place as a shared local gateway.
 
 ## Migration path
 
-1. Create `packages/lewisham-client`.
-2. Move the framework-neutral domain, upstream client, parser, and orchestration
-   into it without changing observable behaviour.
-3. Make `lewisham-server` consume the client package and retain its API schemas,
-   runtime settings, logging, and cache policy.
+Steps 1–3 and 6 are complete. Steps 4, 5, and 7 remain.
+
+1. ~~Create `packages/lewisham-client`.~~
+2. ~~Move the framework-neutral domain, upstream client, parser, and orchestration
+   into it without changing observable behaviour.~~
+3. ~~Make `lewisham-server` consume the client package and retain its API schemas,
+   runtime settings, logging, and cache policy.~~
 4. Make `lewisham-mcp` consume the client directly for local operation.
 5. Add a Home Assistant custom integration backed by the client.
-6. Reposition the repository documentation so the Python client is the core and
-   REST, Home Assistant, and MCP are supported modalities.
+6. ~~Reposition the repository documentation so the Python client is the core and
+   REST, Home Assistant, and MCP are supported modalities.~~
 7. Decide public distribution independently for each modality. A PyPI client,
    HACS integration, and container image may have different release cadences.
 

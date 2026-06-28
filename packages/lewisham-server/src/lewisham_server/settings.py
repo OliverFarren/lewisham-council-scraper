@@ -1,16 +1,15 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import AliasChoices, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-from lewisham_server.clients.lewisham.config import (
+from lewisham_client.clients.lewisham.config import (
     BASE_URL,
     COLLECTION_PAGE_URL,
     REQUEST_TIMEOUT_SECONDS,
     ROUNDS_INFORMATION_ITEM_GUID,
     USER_AGENT,
 )
+from pydantic import AliasChoices, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 LogLevel = Literal["critical", "error", "warning", "info", "debug", "trace"]
 LogFormat = Literal["text", "json"]

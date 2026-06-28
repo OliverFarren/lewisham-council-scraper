@@ -1,4 +1,4 @@
-from lewisham_server.domain.errors import (
+from lewisham_client.domain.errors import (
     AddressNotFoundError,
     CollectionScheduleNotFoundError,
     DomainError,
@@ -7,7 +7,7 @@ from lewisham_server.domain.errors import (
     UpstreamScraperChangedError,
     UpstreamUnavailableError,
 )
-from lewisham_server.domain.models import (
+from lewisham_client.domain.models import (
     AddressCandidate,
     CollectionEntry,
     CollectionSchedule,

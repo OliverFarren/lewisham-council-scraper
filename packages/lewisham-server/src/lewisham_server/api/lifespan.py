@@ -4,10 +4,10 @@ from datetime import timedelta
 
 import structlog
 from fastapi import FastAPI
+from lewisham_client.clients.lewisham import LewishamClient, LewishamParser
+from lewisham_client.services import LewishamService
 
 from lewisham_server._version import APP_VERSION
-from lewisham_server.clients.lewisham import LewishamClient, LewishamParser
-from lewisham_server.services import LewishamService
 from lewisham_server.settings import Settings
 
 Lifespan = Callable[[FastAPI], AbstractAsyncContextManager[None]]

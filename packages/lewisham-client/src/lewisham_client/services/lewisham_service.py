@@ -4,20 +4,20 @@ from typing import Protocol
 
 import structlog
 
-from lewisham_server.clients.lewisham import (
+from lewisham_client.clients.lewisham import (
     CollectionScheduleRaw,
     LewishamClient,
     LewishamParser,
 )
-from lewisham_server.domain.errors import (
+from lewisham_client.domain.errors import (
     AddressNotFoundError,
     CollectionScheduleNotFoundError,
 )
-from lewisham_server.domain.models import (
+from lewisham_client.domain.models import (
     AddressCandidate,
     CollectionSchedule,
 )
-from lewisham_server.storage import MemoryTtlCache, TtlCache
+from lewisham_client.storage import MemoryTtlCache, TtlCache
 
 SCHEDULE_CACHE_TTL = timedelta(hours=24)
 ADDRESS_SEARCH_CACHE_TTL = timedelta(days=7)

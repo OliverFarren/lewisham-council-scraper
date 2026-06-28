@@ -1,14 +1,14 @@
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
-
-from lewisham_server.api.dependencies import LewishamServiceDependency
-from lewisham_server.api.schemas.addresses import AddressCandidateResponse
-from lewisham_server.domain.errors import (
+from lewisham_client.domain.errors import (
     InvalidAddressSearchError,
     UpstreamScraperChangedError,
     UpstreamUnavailableError,
 )
+
+from lewisham_server.api.dependencies import LewishamServiceDependency
+from lewisham_server.api.schemas.addresses import AddressCandidateResponse
 
 router = APIRouter()
 

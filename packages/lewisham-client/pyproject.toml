@@ -1,0 +1,66 @@
+[project]
+name = "lewisham-client"
+dynamic = ["version"]
+requires-python = ">=3.12"
+description = "Python client for Lewisham Council civic data — bin collection schedules and address resolution."
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Oliver Farren", email = "oliver.farren@gmail.com" },
+]
+keywords = ["lewisham", "council", "bins", "waste-collection", "home-assistant", "civic-data"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Home Automation",
+    "Topic :: Internet :: WWW/HTTP",
+]
+dependencies = [
+    "httpx>=0.27.0",
+    "structlog>=26.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/OliverFarren/lewisham-council-scraper"
+Repository = "https://github.com/OliverFarren/lewisham-council-scraper"
+Issues = "https://github.com/OliverFarren/lewisham-council-scraper/issues"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.1.0"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lewisham_client"]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.13.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.8.0",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

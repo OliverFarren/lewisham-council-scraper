@@ -2,14 +2,13 @@ import json
 from datetime import date
 
 import pytest
+from conftest import configure_test_logging
 
-from lewisham_server.clients.lewisham import LewishamParser
-from lewisham_server.domain.errors import (
+from lewisham_client.clients.lewisham import LewishamParser
+from lewisham_client.domain.errors import (
     CollectionScheduleNotFoundError,
     UpstreamScraperChangedError,
 )
-from lewisham_server.logging_config import configure_logging
-from lewisham_server.settings import Settings
 
 
 def encode_html(fragment: str) -> str:
@@ -43,7 +42,9 @@ def test_parser_extracts_residential_schedule() -> None:
         """
     )
 
-    schedule = parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
+    schedule = parser.parse_collection_schedule(
+        raw_body, reference_date=_REFERENCE_DATE
+    )
 
     assert [entry.waste_type for entry in schedule.collections] == [
         "Food waste",
@@ -72,7 +73,9 @@ def test_parser_attaches_published_date_to_fortnightly_entry_not_weekly() -> Non
         """
     )
 
-    schedule = parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
+    schedule = parser.parse_collection_schedule(
+        raw_body, reference_date=_REFERENCE_DATE
+    )
 
     recycling, refuse = schedule.collections
     assert recycling.next_collection == date(2026, 6, 26)  # derived: same-day Friday
@@ -90,7 +93,9 @@ def test_parser_derives_next_weekday_for_weekly_entries() -> None:
         """
     )
 
-    schedule = parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
+    schedule = parser.parse_collection_schedule(
+        raw_body, reference_date=_REFERENCE_DATE
+    )
 
     entry = schedule.collections[0]
     assert entry.next_collection == date(2026, 7, 2)
@@ -106,7 +111,9 @@ def test_parser_returns_null_for_fortnightly_without_published_date() -> None:
         """
     )
 
-    schedule = parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
+    schedule = parser.parse_collection_schedule(
+        raw_body, reference_date=_REFERENCE_DATE
+    )
 
     entry = schedule.collections[0]
     assert entry.next_collection is None
@@ -136,7 +143,9 @@ def test_parser_allows_partial_civic_schedule() -> None:
         """
     )
 
-    schedule = parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
+    schedule = parser.parse_collection_schedule(
+        raw_body, reference_date=_REFERENCE_DATE
+    )
 
     assert len(schedule.collections) == 1
     entry = schedule.collections[0]
@@ -166,7 +175,7 @@ def test_parser_rejects_malformed_json() -> None:
 
 
 def test_parser_logs_contract_drift_without_raw_payload_by_default(capsys) -> None:
-    configure_logging(Settings(log_format="json", log_level="debug"))
+    configure_test_logging("debug")
     parser = LewishamParser()
     raw_body = "{not-json SECRET-UPSTREAM-PAYLOAD"
 
@@ -184,7 +193,7 @@ def test_parser_logs_contract_drift_without_raw_payload_by_default(capsys) -> No
 
 
 def test_parser_logs_raw_preview_only_with_debug_and_explicit_opt_in(capsys) -> None:
-    configure_logging(Settings(log_format="json", log_level="debug"))
+    configure_test_logging("debug")
     parser = LewishamParser(include_raw_upstream=True, raw_upstream_max_chars=10)
     raw_body = "{not-json SECRET-UPSTREAM-PAYLOAD"
 
@@ -199,7 +208,7 @@ def test_parser_logs_raw_preview_only_with_debug_and_explicit_opt_in(capsys) -> 
 
 
 def test_parser_skips_raw_preview_when_debug_is_disabled(capsys) -> None:
-    configure_logging(Settings(log_format="json", log_level="info"))
+    configure_test_logging("info")
     parser = LewishamParser(include_raw_upstream=True, raw_upstream_max_chars=10)
     raw_body = "{not-json SECRET-UPSTREAM-PAYLOAD"
 
@@ -250,7 +259,9 @@ def test_parser_normalises_non_breaking_spaces_and_frequency_case() -> None:
         """
     )
 
-    schedule = parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
+    schedule = parser.parse_collection_schedule(
+        raw_body, reference_date=_REFERENCE_DATE
+    )
 
     assert schedule.collections[0].waste_type == "Food waste"
     assert schedule.collections[0].frequency == "FORTNIGHTLY"

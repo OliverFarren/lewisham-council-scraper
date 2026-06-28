@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from lewisham_server.domain.models import CollectionEntry
+from lewisham_client.domain.models import CollectionEntry
 
 
 @dataclass(frozen=True, slots=True)

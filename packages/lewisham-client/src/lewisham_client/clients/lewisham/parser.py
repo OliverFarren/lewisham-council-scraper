@@ -8,12 +8,12 @@ from typing import Literal
 
 import structlog
 
-from lewisham_server.clients.lewisham.models import ParsedCollectionSchedule
-from lewisham_server.domain.errors import (
+from lewisham_client.clients.lewisham.models import ParsedCollectionSchedule
+from lewisham_client.domain.errors import (
     CollectionScheduleNotFoundError,
     UpstreamScraperChangedError,
 )
-from lewisham_server.domain.models import CollectionEntry
+from lewisham_client.domain.models import CollectionEntry
 
 _ENTRY_PATTERN = re.compile(
     r"<strong[^>]*>\s*(?P<waste_type>.*?)\s*</strong>\s*"
@@ -33,6 +33,8 @@ _NEXT_DATE_PHRASE_PATTERN = re.compile(
     r"your\s+next\s+collection\s+date\s+is\s*(?P<date>[^.<\n\r]+)",
     re.IGNORECASE,
 )
+
+
 def _parse_frequency(value: str) -> Literal["WEEKLY", "FORTNIGHTLY"]:
     if value == "WEEKLY":
         return "WEEKLY"
@@ -124,7 +126,8 @@ class LewishamParser:
 
         for i, match in enumerate(matches):
             waste_type = cls._clean_text(match.group("waste_type"))
-            frequency = _parse_frequency(cls._clean_text(match.group("frequency")).upper())
+            raw_frequency = cls._clean_text(match.group("frequency")).upper()
+            frequency = _parse_frequency(raw_frequency)
             day = cls._clean_text(match.group("day")).rstrip(".")
             if not waste_type or not day:
                 raise UpstreamScraperChangedError(
