@@ -26,7 +26,8 @@ lint: ## Run Ruff linting for the workspace.
 	$(UV) run ruff check .
 
 .PHONY: format
-format: ## Format the workspace with Ruff.
+format: ## Format the workspace with Ruff (includes import sorting).
+	$(UV) run ruff check --fix --select I .
 	$(UV) run ruff format .
 
 .PHONY: format-check
