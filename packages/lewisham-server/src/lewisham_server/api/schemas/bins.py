@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -15,13 +16,31 @@ class CollectionEntryResponse(BaseModel):
         description="Waste stream label exactly as normalized from Lewisham.",
         examples=["Refuse"],
     )
-    frequency: str = Field(
+    frequency: Literal["WEEKLY", "FORTNIGHTLY"] = Field(
         description="Collection cadence reported by Lewisham.",
         examples=["FORTNIGHTLY"],
     )
     day: str = Field(
         description="Named weekday on which this waste stream is collected.",
         examples=["Thursday"],
+    )
+    next_collection: date | None = Field(
+        description=(
+            "Next collection date for this waste stream. Present for fortnightly "
+            "streams when Lewisham publishes an anchor date, and for all weekly "
+            "streams via weekday derivation. Null for fortnightly streams without "
+            "a published anchor."
+        ),
+        examples=["2026-07-03"],
+    )
+    next_collection_basis: Literal["published", "weekday_derived"] | None = Field(
+        description=(
+            "'published' means Lewisham explicitly stated the date on the schedule "
+            "page. 'weekday_derived' means the date was computed as the next "
+            "occurrence of the collection weekday from the fetch timestamp. Null "
+            "when next_collection is null."
+        ),
+        examples=["published"],
     )
 
     @classmethod
@@ -30,6 +49,8 @@ class CollectionEntryResponse(BaseModel):
             waste_type=entry.waste_type,
             frequency=entry.frequency,
             day=entry.day,
+            next_collection=entry.next_collection,
+            next_collection_basis=entry.next_collection_basis,
         )
 
 
@@ -46,13 +67,6 @@ class CollectionScheduleResponse(BaseModel):
     )
     collections: list[CollectionEntryResponse] = Field(
         description="Waste collection streams parsed from Lewisham's response.",
-    )
-    next_collection: date | None = Field(
-        description=(
-            "Next collection date when Lewisham publishes one. Some civic or "
-            "partial schedules include collection streams without a date."
-        ),
-        examples=["2026-07-02"],
     )
     source_url: str = Field(
         description="Lewisham web page that backs the scraped endpoint.",
@@ -74,7 +88,6 @@ class CollectionScheduleResponse(BaseModel):
                 CollectionEntryResponse.from_domain(entry)
                 for entry in schedule.collections
             ],
-            next_collection=schedule.next_collection,
             source_url=schedule.source_url,
             fetched_at=schedule.fetched_at,
         )

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import date, datetime
+from typing import Literal
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,8 +16,10 @@ class CollectionEntry:
     """One waste collection stream parsed from Lewisham's schedule HTML."""
 
     waste_type: str
-    frequency: str
+    frequency: Literal["WEEKLY", "FORTNIGHTLY"]
     day: str
+    next_collection: date | None
+    next_collection_basis: Literal["published", "weekday_derived"] | None
 
 
 @dataclass(slots=True)
@@ -26,6 +29,5 @@ class CollectionSchedule:
     uprn: str
     address: str
     collections: list[CollectionEntry]
-    next_collection: date | None
     source_url: str
     fetched_at: datetime

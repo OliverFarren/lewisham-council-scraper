@@ -3,7 +3,8 @@ import html
 import json
 import logging
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from typing import Literal
 
 import structlog
 
@@ -32,6 +33,25 @@ _NEXT_DATE_PHRASE_PATTERN = re.compile(
     r"your\s+next\s+collection\s+date\s+is\s*(?P<date>[^.<\n\r]+)",
     re.IGNORECASE,
 )
+def _parse_frequency(value: str) -> Literal["WEEKLY", "FORTNIGHTLY"]:
+    if value == "WEEKLY":
+        return "WEEKLY"
+    if value == "FORTNIGHTLY":
+        return "FORTNIGHTLY"
+    raise UpstreamScraperChangedError(
+        "roundsinformation returned an unrecognised collection frequency."
+    )
+
+
+_WEEKDAY_NAMES: dict[str, int] = {
+    "monday": 0,
+    "tuesday": 1,
+    "wednesday": 2,
+    "thursday": 3,
+    "friday": 4,
+    "saturday": 5,
+    "sunday": 6,
+}
 logger = structlog.get_logger(__name__)
 
 
@@ -47,22 +67,28 @@ class LewishamParser:
         self._include_raw_upstream = include_raw_upstream
         self._raw_upstream_max_chars = raw_upstream_max_chars
 
-    def parse_collection_schedule(self, raw_body: str) -> ParsedCollectionSchedule:
-        """Return structured collection entries from a roundsinformation response."""
+    def parse_collection_schedule(
+        self,
+        raw_body: str,
+        *,
+        reference_date: date,
+    ) -> ParsedCollectionSchedule:
+        """Return structured collection entries from a roundsinformation response.
+
+        reference_date is used to derive next-occurrence dates for weekly streams
+        that Lewisham does not accompany with an explicit date.
+        """
 
         try:
             decoded_html = self._decode_json_html(raw_body)
             normalised_html = self._normalise_html(decoded_html)
-            collections = self._parse_entries(normalised_html)
+            collections = self._parse_entries(normalised_html, reference_date)
             if not collections:
                 raise CollectionScheduleNotFoundError(
                     "Lewisham returned no collection entries for this UPRN."
                 )
 
-            return ParsedCollectionSchedule(
-                collections=collections,
-                next_collection=self._parse_next_collection(normalised_html),
-            )
+            return ParsedCollectionSchedule(collections=collections)
         except UpstreamScraperChangedError as exc:
             self._log_contract_drift(raw_body, exc)
             raise
@@ -88,46 +114,82 @@ class LewishamParser:
         return html.unescape(raw_html).replace("\xa0", " ")
 
     @classmethod
-    def _parse_entries(cls, normalised_html: str) -> list[CollectionEntry]:
+    def _parse_entries(
+        cls,
+        normalised_html: str,
+        reference_date: date,
+    ) -> list[CollectionEntry]:
+        matches = list(_ENTRY_PATTERN.finditer(normalised_html))
         entries: list[CollectionEntry] = []
-        for match in _ENTRY_PATTERN.finditer(normalised_html):
+
+        for i, match in enumerate(matches):
             waste_type = cls._clean_text(match.group("waste_type"))
-            frequency = cls._clean_text(match.group("frequency")).upper()
+            frequency = _parse_frequency(cls._clean_text(match.group("frequency")).upper())
             day = cls._clean_text(match.group("day")).rstrip(".")
-            if not waste_type or not frequency or not day:
+            if not waste_type or not day:
                 raise UpstreamScraperChangedError(
                     "roundsinformation returned an incomplete collection entry."
                 )
+
+            segment_start = match.end()
+            segment_end = (
+                matches[i + 1].start() if i + 1 < len(matches) else len(normalised_html)
+            )
+            segment = normalised_html[segment_start:segment_end]
+
+            next_collection, basis = cls._parse_entry_date(
+                segment, frequency, day, reference_date
+            )
 
             entries.append(
                 CollectionEntry(
                     waste_type=waste_type,
                     frequency=frequency,
                     day=day,
+                    next_collection=next_collection,
+                    next_collection_basis=basis,
                 )
             )
 
         return entries
 
     @classmethod
-    def _parse_next_collection(cls, normalised_html: str) -> date | None:
-        exact_match = _NEXT_DATE_PATTERN.search(normalised_html)
-        if exact_match is None:
-            phrase_match = _NEXT_DATE_PHRASE_PATTERN.search(normalised_html)
-            if phrase_match is None:
-                return None
+    def _parse_entry_date(
+        cls,
+        segment: str,
+        frequency: str,
+        day: str,
+        reference_date: date,
+    ) -> tuple[date | None, Literal["published", "weekday_derived"] | None]:
+        exact_match = _NEXT_DATE_PATTERN.search(segment)
+        if exact_match is not None:
+            date_text = exact_match.group("date")
+            try:
+                return datetime.strptime(date_text, "%d/%m/%Y").date(), "published"
+            except ValueError as exc:
+                raise UpstreamScraperChangedError(
+                    "roundsinformation returned an invalid next collection date."
+                ) from exc
 
+        if _NEXT_DATE_PHRASE_PATTERN.search(segment) is not None:
             raise UpstreamScraperChangedError(
                 "roundsinformation returned an unparseable next collection date."
             )
 
-        date_text = exact_match.group("date")
-        try:
-            return datetime.strptime(date_text, "%d/%m/%Y").date()
-        except ValueError as exc:
-            raise UpstreamScraperChangedError(
-                "roundsinformation returned an invalid next collection date."
-            ) from exc
+        if frequency == "WEEKLY":
+            derived = cls._next_weekday(day, reference_date)
+            if derived is not None:
+                return derived, "weekday_derived"
+
+        return None, None
+
+    @staticmethod
+    def _next_weekday(day: str, reference_date: date) -> date | None:
+        target = _WEEKDAY_NAMES.get(day.strip().lower())
+        if target is None:
+            return None
+        days_ahead = (target - reference_date.weekday()) % 7
+        return reference_date + timedelta(days=days_ahead)
 
     @staticmethod
     def _clean_text(value: str) -> str:

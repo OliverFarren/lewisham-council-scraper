@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import datetime
 
 from lewisham_server.domain.models import CollectionEntry
 
@@ -15,4 +15,3 @@ class CollectionScheduleRaw:
 @dataclass(slots=True)
 class ParsedCollectionSchedule:
     collections: list[CollectionEntry]
-    next_collection: date | None

@@ -154,7 +154,6 @@ async def test_get_collection_schedule_logs_safe_completion_event(capsys) -> Non
     )
 
     assert completion_event["collection_count"] == 1
-    assert completion_event["next_collection"] == "2026-07-02"
     assert "100000000001" not in captured.out
     assert "1 Example Street" not in captured.out
 

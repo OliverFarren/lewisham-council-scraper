@@ -20,6 +20,12 @@ def json_events(output: str) -> list[dict[str, object]]:
     return [json.loads(line) for line in output.splitlines()]
 
 
+# Reference date for tests: Friday 2026-06-26.
+# Next Thursday from Friday: (3 - 4) % 7 = 6 days → 2026-07-02.
+# Next Monday from Friday: (0 - 4) % 7 = 3 days → 2026-06-29.
+_REFERENCE_DATE = date(2026, 6, 26)
+
+
 def test_parser_extracts_residential_schedule() -> None:
     parser = LewishamParser()
     raw_body = encode_html(
@@ -37,7 +43,7 @@ def test_parser_extracts_residential_schedule() -> None:
         """
     )
 
-    schedule = parser.parse_collection_schedule(raw_body)
+    schedule = parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
 
     assert [entry.waste_type for entry in schedule.collections] == [
         "Food waste",
@@ -50,7 +56,61 @@ def test_parser_extracts_residential_schedule() -> None:
         "FORTNIGHTLY",
     ]
     assert {entry.day for entry in schedule.collections} == {"Thursday"}
-    assert schedule.next_collection == date(2026, 7, 2)
+
+
+def test_parser_attaches_published_date_to_fortnightly_entry_not_weekly() -> None:
+    """The published date follows Refuse in the HTML and belongs only to that entry."""
+    parser = LewishamParser()
+    raw_body = encode_html(
+        """
+        <strong>Recycling</strong>&nbsp;is collected
+        <span class="RoundsTransform">WEEKLY</span> on Friday.
+        <br><br>
+        <strong>Refuse</strong>&nbsp;is collected
+        <span class="RoundsTransform">FORTNIGHTLY</span> on Friday.
+        Your next collection date is 10/07/2026.
+        """
+    )
+
+    schedule = parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
+
+    recycling, refuse = schedule.collections
+    assert recycling.next_collection == date(2026, 6, 26)  # derived: same-day Friday
+    assert recycling.next_collection_basis == "weekday_derived"
+    assert refuse.next_collection == date(2026, 7, 10)
+    assert refuse.next_collection_basis == "published"
+
+
+def test_parser_derives_next_weekday_for_weekly_entries() -> None:
+    parser = LewishamParser()
+    raw_body = encode_html(
+        """
+        <strong>Food waste</strong>&nbsp;is collected
+        <span class="RoundsTransform">WEEKLY</span> on Thursday.
+        """
+    )
+
+    schedule = parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
+
+    entry = schedule.collections[0]
+    assert entry.next_collection == date(2026, 7, 2)
+    assert entry.next_collection_basis == "weekday_derived"
+
+
+def test_parser_returns_null_for_fortnightly_without_published_date() -> None:
+    parser = LewishamParser()
+    raw_body = encode_html(
+        """
+        <strong>Refuse</strong>&nbsp;is collected
+        <span class="RoundsTransform">FORTNIGHTLY</span> on Thursday.
+        """
+    )
+
+    schedule = parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
+
+    entry = schedule.collections[0]
+    assert entry.next_collection is None
+    assert entry.next_collection_basis is None
 
 
 def test_parser_detects_empty_schedule() -> None:
@@ -64,10 +124,10 @@ def test_parser_detects_empty_schedule() -> None:
     )
 
     with pytest.raises(CollectionScheduleNotFoundError):
-        parser.parse_collection_schedule(raw_body)
+        parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
 
 
-def test_parser_allows_partial_civic_schedule_without_next_date() -> None:
+def test_parser_allows_partial_civic_schedule() -> None:
     parser = LewishamParser()
     raw_body = encode_html(
         """
@@ -76,18 +136,33 @@ def test_parser_allows_partial_civic_schedule_without_next_date() -> None:
         """
     )
 
-    schedule = parser.parse_collection_schedule(raw_body)
+    schedule = parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
 
     assert len(schedule.collections) == 1
-    assert schedule.collections[0].waste_type == "Recycling"
-    assert schedule.next_collection is None
+    entry = schedule.collections[0]
+    assert entry.waste_type == "Recycling"
+    assert entry.next_collection == date(2026, 6, 29)  # next Monday from Friday
+    assert entry.next_collection_basis == "weekday_derived"
+
+
+def test_parser_rejects_unrecognised_frequency() -> None:
+    parser = LewishamParser()
+    raw_body = encode_html(
+        """
+        <strong>Refuse</strong>&nbsp;is collected
+        <span class="RoundsTransform">4-WEEKLY</span> on Thursday.
+        """
+    )
+
+    with pytest.raises(UpstreamScraperChangedError):
+        parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
 
 
 def test_parser_rejects_malformed_json() -> None:
     parser = LewishamParser()
 
     with pytest.raises(UpstreamScraperChangedError):
-        parser.parse_collection_schedule("{not-json")
+        parser.parse_collection_schedule("{not-json", reference_date=_REFERENCE_DATE)
 
 
 def test_parser_logs_contract_drift_without_raw_payload_by_default(capsys) -> None:
@@ -96,7 +171,7 @@ def test_parser_logs_contract_drift_without_raw_payload_by_default(capsys) -> No
     raw_body = "{not-json SECRET-UPSTREAM-PAYLOAD"
 
     with pytest.raises(UpstreamScraperChangedError):
-        parser.parse_collection_schedule(raw_body)
+        parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
 
     captured = capsys.readouterr()
     event = json_events(captured.err)[0]
@@ -114,7 +189,7 @@ def test_parser_logs_raw_preview_only_with_debug_and_explicit_opt_in(capsys) -> 
     raw_body = "{not-json SECRET-UPSTREAM-PAYLOAD"
 
     with pytest.raises(UpstreamScraperChangedError):
-        parser.parse_collection_schedule(raw_body)
+        parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
 
     captured = capsys.readouterr()
     event = json_events(captured.err)[0]
@@ -129,7 +204,7 @@ def test_parser_skips_raw_preview_when_debug_is_disabled(capsys) -> None:
     raw_body = "{not-json SECRET-UPSTREAM-PAYLOAD"
 
     with pytest.raises(UpstreamScraperChangedError):
-        parser.parse_collection_schedule(raw_body)
+        parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
 
     captured = capsys.readouterr()
     event = json_events(captured.err)[0]
@@ -149,7 +224,7 @@ def test_parser_rejects_malformed_date_phrase() -> None:
     )
 
     with pytest.raises(UpstreamScraperChangedError):
-        parser.parse_collection_schedule(raw_body)
+        parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
 
 
 def test_parser_rejects_invalid_calendar_date() -> None:
@@ -163,7 +238,7 @@ def test_parser_rejects_invalid_calendar_date() -> None:
     )
 
     with pytest.raises(UpstreamScraperChangedError):
-        parser.parse_collection_schedule(raw_body)
+        parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
 
 
 def test_parser_normalises_non_breaking_spaces_and_frequency_case() -> None:
@@ -175,7 +250,8 @@ def test_parser_normalises_non_breaking_spaces_and_frequency_case() -> None:
         """
     )
 
-    schedule = parser.parse_collection_schedule(raw_body)
+    schedule = parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
 
     assert schedule.collections[0].waste_type == "Food waste"
     assert schedule.collections[0].frequency == "FORTNIGHTLY"
+    assert schedule.collections[0].next_collection is None

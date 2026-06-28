@@ -149,11 +149,6 @@ class LewishamService:
             logger.info(
                 "schedule_lookup_completed",
                 collection_count=len(cached_schedule.collections),
-                next_collection=(
-                    cached_schedule.next_collection.isoformat()
-                    if cached_schedule.next_collection is not None
-                    else None
-                ),
                 source_url=cached_schedule.source_url,
                 fetched_at=cached_schedule.fetched_at.isoformat(),
             )
@@ -164,7 +159,10 @@ class LewishamService:
         raw_schedule = await self._client.get_collection_schedule(address.uprn)
 
         try:
-            parsed_schedule = self._parser.parse_collection_schedule(raw_schedule.body)
+            parsed_schedule = self._parser.parse_collection_schedule(
+                raw_schedule.body,
+                reference_date=raw_schedule.fetched_at.date(),
+            )
         except CollectionScheduleNotFoundError:
             self._negative_cache.set(schedule_key, True, self._negative_cache_ttl)
             logger.debug("cache_store", namespace="schedule", cache_type="negative")
@@ -175,7 +173,6 @@ class LewishamService:
             uprn=address.uprn,
             address=address.title,
             collections=list(parsed_schedule.collections),
-            next_collection=parsed_schedule.next_collection,
             source_url=raw_schedule.source_url,
             fetched_at=raw_schedule.fetched_at,
         )
@@ -189,11 +186,6 @@ class LewishamService:
         logger.info(
             "schedule_lookup_completed",
             collection_count=len(schedule.collections),
-            next_collection=(
-                schedule.next_collection.isoformat()
-                if schedule.next_collection is not None
-                else None
-            ),
             source_url=schedule.source_url,
             fetched_at=schedule.fetched_at.isoformat(),
         )

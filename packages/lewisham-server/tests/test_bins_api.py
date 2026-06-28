@@ -1,7 +1,7 @@
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -39,9 +39,10 @@ class FakeLewishamService:
                     waste_type="Refuse",
                     frequency="FORTNIGHTLY",
                     day="Thursday",
+                    next_collection=None,
+                    next_collection_basis=None,
                 )
             ],
-            next_collection=date(2026, 7, 2),
             source_url="https://lewisham.gov.uk/example",
             fetched_at=datetime(2026, 6, 26, 12, 0, tzinfo=UTC),
         )
@@ -69,9 +70,10 @@ def test_get_collection_schedule_returns_schedule() -> None:
                 "waste_type": "Refuse",
                 "frequency": "FORTNIGHTLY",
                 "day": "Thursday",
+                "next_collection": None,
+                "next_collection_basis": None,
             }
         ],
-        "next_collection": "2026-07-02",
         "source_url": "https://lewisham.gov.uk/example",
         "fetched_at": "2026-06-26T12:00:00Z",
     }
