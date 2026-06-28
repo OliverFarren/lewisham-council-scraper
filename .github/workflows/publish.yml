@@ -84,6 +84,21 @@ jobs:
       - name: Build distributions
         run: uv build --no-sources --package lewisham-council-client
 
+      - name: Verify distribution version matches tag
+        shell: bash
+        run: |
+          expected_version="${GITHUB_REF_NAME#lewisham-council-client-v}"
+          actual_version="$(
+            uv run --no-project --isolated \
+              --with ./dist/lewisham_council_client-*.whl \
+              python -c 'from importlib.metadata import version; print(version("lewisham-council-client"))'
+          )"
+
+          if [[ "$actual_version" != "$expected_version" ]]; then
+            echo "::error::Built version $actual_version does not match tag $expected_version"
+            exit 1
+          fi
+
       - name: Check distribution metadata
         run: uvx --from twine twine check dist/*
 
