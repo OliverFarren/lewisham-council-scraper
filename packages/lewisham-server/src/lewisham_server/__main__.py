@@ -13,7 +13,6 @@ def main() -> None:
         "lewisham_server.main:app",
         host=settings.host,
         port=settings.port,
-        workers=settings.workers,
         log_level=settings.log_level,
         log_config=None,
         access_log=False,

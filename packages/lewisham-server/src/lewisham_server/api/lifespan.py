@@ -5,6 +5,7 @@ from datetime import timedelta
 import structlog
 from fastapi import FastAPI
 
+from lewisham_server._version import APP_VERSION
 from lewisham_server.clients.lewisham import LewishamClient, LewishamParser
 from lewisham_server.services import LewishamService
 from lewisham_server.settings import Settings
@@ -20,12 +21,11 @@ def create_lifespan(settings: Settings) -> Lifespan:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info(
             "app_starting",
-            app_version=settings.app_version,
+            app_version=APP_VERSION,
             log_level=settings.log_level,
             log_format=settings.log_format,
             host=settings.host,
             port=settings.port,
-            workers=settings.workers,
             cache_schedule_ttl_seconds=settings.cache_schedule_ttl_seconds,
             cache_address_search_ttl_seconds=settings.cache_address_search_ttl_seconds,
             cache_uprn_ttl_seconds=settings.cache_uprn_ttl_seconds,
@@ -36,12 +36,12 @@ def create_lifespan(settings: Settings) -> Lifespan:
         lewisham_service = _create_lewisham_service(settings)
         app.state.settings = settings
         app.state.lewisham_service = lewisham_service
-        logger.info("app_ready", app_version=settings.app_version)
+        logger.info("app_ready", app_version=APP_VERSION)
         try:
             yield
         finally:
             await lewisham_service.aclose()
-            logger.info("app_shutdown", app_version=settings.app_version)
+            logger.info("app_shutdown", app_version=APP_VERSION)
 
     return lifespan
 

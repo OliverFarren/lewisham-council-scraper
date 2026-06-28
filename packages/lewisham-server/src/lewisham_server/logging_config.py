@@ -12,6 +12,34 @@ from lewisham_server.settings import LogLevel, Settings
 
 TRACE_LEVEL = 5
 
+# ── text log format ───────────────────────────────────────────────────────────
+# Edit this section to customise human-readable output.
+#
+# _EVENT_PAD: event names are padded to this width so that key=value pairs
+# start at a consistent column. Longest event in this service is
+# "address_lookup_completed" (24 chars).
+#
+# Logger names are dropped from text output to reduce line noise. They are
+# retained in JSON where log aggregators can filter by source.
+_EVENT_PAD = 30
+
+_TEXT_RENDERER = structlog.dev.ConsoleRenderer(
+    colors=False,
+    sort_keys=False,
+    pad_event_to=_EVENT_PAD,
+)
+
+
+def _drop_logger_name(
+    _: logging.Logger,
+    __: str,
+    event_dict: MutableMapping[str, Any],
+) -> MutableMapping[str, Any]:
+    event_dict.pop("logger", None)
+    event_dict.pop("logger_name", None)
+    return event_dict
+
+
 SAFE_LOG_FIELDS = frozenset(
     {
         "event",
@@ -29,9 +57,9 @@ SAFE_LOG_FIELDS = frozenset(
         "log_format",
         "host",
         "port",
-        "workers",
         "cache_schedule_ttl_seconds",
-        "cache_address_ttl_seconds",
+        "cache_address_search_ttl_seconds",
+        "cache_uprn_ttl_seconds",
         "cache_negative_ttl_seconds",
         "upstream_base_url",
         "upstream_timeout_seconds",
@@ -113,22 +141,33 @@ class CurrentStreamHandler(logging.StreamHandler[TextIO]):
         super().emit(record)
 
 
+def _build_render_processors(
+    is_text: bool,
+) -> list[structlog.types.Processor]:
+    """Return the processor steps that run immediately before rendering.
+
+    Text and JSON diverge here: text drops logger names for readability while
+    JSON retains them so log aggregators can filter by source.
+    """
+    return [
+        structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+        *([_drop_logger_name] if is_text else []),
+        _TEXT_RENDERER if is_text else structlog.processors.JSONRenderer(),
+    ]
+
+
 def configure_logging(settings: Settings) -> None:
     """Configure stdlib logging and structlog with one rendering pipeline."""
 
     _install_trace_level()
     level = _log_level_value(settings.log_level)
-    renderer = (
-        structlog.processors.JSONRenderer()
-        if settings.log_format == "json"
-        else structlog.dev.ConsoleRenderer(colors=False, sort_keys=False)
-    )
+    is_text = settings.log_format == "text"
 
     shared_processors = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso", utc=True),
+        structlog.processors.TimeStamper(fmt="%Y-%m-%dT%H:%M:%SZ", utc=True),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         redact_log_fields,
@@ -152,10 +191,7 @@ def configure_logging(settings: Settings) -> None:
                 "structured": {
                     "()": structlog.stdlib.ProcessorFormatter,
                     "foreign_pre_chain": shared_processors,
-                    "processors": [
-                        structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-                        renderer,
-                    ],
+                    "processors": _build_render_processors(is_text),
                 },
             },
             "handlers": {
@@ -214,7 +250,7 @@ def configure_logging(settings: Settings) -> None:
             structlog.stdlib.filter_by_level,
             structlog.stdlib.add_logger_name,
             structlog.stdlib.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso", utc=True),
+            structlog.processors.TimeStamper(fmt="%Y-%m-%dT%H:%M:%SZ", utc=True),
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
             redact_log_fields,

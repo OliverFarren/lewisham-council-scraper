@@ -15,6 +15,8 @@ from lewisham_server.clients.lewisham.config import (
 LogLevel = Literal["critical", "error", "warning", "info", "debug", "trace"]
 LogFormat = Literal["text", "json"]
 
+APP_NAME = "Lewisham Council Scraper API"
+
 
 class Settings(BaseSettings):
     """Runtime configuration loaded from environment variables.
@@ -31,8 +33,6 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "Lewisham Council Scraper API"
-    app_version: str = "0.1.0"
     host: str = "0.0.0.0"
     port: int = Field(
         default=8000,
@@ -40,7 +40,6 @@ class Settings(BaseSettings):
         le=65535,
         validation_alias=AliasChoices("LEWISHAM_SERVER_PORT", "PORT"),
     )
-    workers: int = Field(default=1, ge=1)
     log_level: LogLevel = "info"
     log_format: LogFormat = "text"
     log_include_raw_upstream: bool = False
