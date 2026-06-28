@@ -2,10 +2,14 @@
 title: Design Motivation
 description: Why lewisham-council-scraper exists, why no official API exists, the scraping approach, and the MCP integration layer.
 created: 2026-06-26
-status: draft
+status: accepted
 ---
 
 # Design Motivation
+
+> **Architecture update:** The motivation in this document remains current,
+> while the API-first integration shape is evolved by
+> [Design 002: Client-First Integration Architecture](design_002_client_first_architecture.md).
 
 ## Why this project exists
 

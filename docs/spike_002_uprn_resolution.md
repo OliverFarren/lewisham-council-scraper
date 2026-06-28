@@ -2,10 +2,14 @@
 title: Spike - Independent UPRN Resolution
 description: Investigation plan for resolving addresses to UPRNs without depending on Lewisham Council's undocumented AddressFinder endpoint.
 created: 2026-06-28
-status: draft
+status: complete
+result: spike_002_findings.md
 ---
 
 # Spike - Independent UPRN Resolution
+
+> **Investigation complete:** See
+> [Spike 002 Findings](spike_002_findings.md).
 
 ## Context
 

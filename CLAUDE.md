@@ -1,13 +1,20 @@
 # Repository Guidance
 
-This repository is a Python monorepo for scraping and serving Lewisham Council
-data. Treat it as public FOSS infrastructure: clear code, explicit boundaries,
-and tests that document behavior.
+This repository is a Python monorepo for retrieving and integrating Lewisham
+Council data. Treat it as public FOSS infrastructure: clear code, explicit
+boundaries, and tests that document behavior.
 
 ## Architecture
 
-- `packages/lewisham-server` is the FastAPI REST service.
-- `packages/lewisham-mcp` is the optional MCP wrapper around the REST service.
+- Follow `docs/design_002_client_first_architecture.md` for the accepted target
+  architecture and dependency direction.
+- The reusable, framework-neutral Python client is the core capability.
+- `packages/lewisham-server` is an optional FastAPI adapter. It currently
+  contains code that will move into the client during the migration.
+- `packages/lewisham-mcp` is an optional MCP adapter. Local MCP use should
+  consume the client directly rather than require the REST service.
+- A Home Assistant integration should consume the client directly and must not
+  require users to deploy the REST service.
 - Keep concerns separated:
   - `api/` owns FastAPI routes, dependencies, app assembly, and response schemas.
   - `services/` owns business orchestration and cache policy.
@@ -28,6 +35,23 @@ and tests that document behavior.
   data. Do not commit real residential UPRNs or personal address fixtures.
 - Add docstrings where they explain intent, lifecycle, public interfaces, or
   non-obvious source behavior. Avoid docstrings that merely restate names.
+
+## Documentation
+
+- Keep frontmatter `status` values current in the same change that completes,
+  accepts, replaces, or abandons documented work.
+- Use these lifecycle values consistently:
+  - `draft`: actively being written and not ready for a decision.
+  - `proposed`: ready for review but not yet adopted.
+  - `accepted`: the current architectural or product direction.
+  - `complete`: a finite investigation or work item has concluded.
+  - `superseded`: replaced by a later document; preserve it as historical
+    context and link to its successor.
+  - `abandoned`: intentionally stopped without completion or replacement.
+- Mark a spike plan `complete` when its investigation has concluded and link it
+  to the corresponding findings.
+- When a design changes, add a prominent successor link to the earlier document
+  rather than rewriting the historical rationale.
 
 ## Commands
 

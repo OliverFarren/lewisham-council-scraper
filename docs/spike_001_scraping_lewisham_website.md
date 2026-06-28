@@ -2,10 +2,14 @@
 title: Spike - Scraping Lewisham Website
 description: Investigation plan for turning Lewisham Council bin collection pages into a reliable scraping engine.
 created: 2026-06-26
-status: draft
+status: complete
+result: spike_001_findings.md
 ---
 
 # Spike - Scraping Lewisham Website
+
+> **Investigation complete:** See
+> [Spike 001 Findings](spike_001_findings.md).
 
 ## Context
 
