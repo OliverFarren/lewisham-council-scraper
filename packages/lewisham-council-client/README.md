@@ -42,8 +42,8 @@ asyncio.run(main())
 ```
 
 `LewishamService` creates and manages its own `httpx.AsyncClient` by default.
-If the host application already manages a session (for example, Home Assistant's
-`aiohttp` session or a shared httpx client), pass it via `LewishamClient`:
+If the host application already manages a shared `httpx.AsyncClient`, pass it
+via `LewishamClient`:
 
 ```python
 import httpx

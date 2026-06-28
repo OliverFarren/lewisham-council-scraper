@@ -57,13 +57,11 @@ on:
 # Then create a "pypi" environment in GitHub repository Settings → Environments.
 
 jobs:
-  publish-pypi:
-    name: Publish lewisham-council-client to PyPI
+  build-distributions:
+    name: Build and validate Python distributions
     runs-on: ubuntu-latest
-    environment: pypi
     permissions:
       contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -74,8 +72,54 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Build
-        run: uv build --package lewisham-council-client
+      - name: Install Python
+        run: uv python install 3.12 3.13
+
+      - name: Install dependencies
+        run: uv sync --all-packages --all-groups --locked
+
+      - name: Run workspace checks
+        run: make check
+
+      - name: Build distributions
+        run: uv build --no-sources --package lewisham-council-client
+
+      - name: Check distribution metadata
+        run: uvx --from twine twine check dist/*
+
+      - name: Test installed wheel on Python 3.12
+        run: >
+          uv run
+          --no-project
+          --isolated
+          --python 3.12
+          --with ./dist/lewisham_council_client-*.whl
+          --with pytest
+          --with pytest-asyncio
+          pytest packages/lewisham-council-client/tests
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+          if-no-files-found: error
+
+  publish-pypi:
+    name: Publish lewisham-council-client to PyPI
+    needs: build-distributions
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/lewisham-council-client
+    permissions:
+      id-token: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

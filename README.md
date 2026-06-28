@@ -30,7 +30,7 @@ lewisham-council-scraper/
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml         # Lint, typecheck, test on push/PR
-│       └── publish.yml    # Publish Docker images to ghcr.io on tag
+│       └── publish.yml    # Publish lewisham-council-client to PyPI on tag
 ├── pyproject.toml         # uv workspace root
 └── .python-version        # Python version pin
 ```
