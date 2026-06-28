@@ -12,7 +12,7 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "lewisham-client",
+    "lewisham-council-client",
     "lewisham-mcp",
     "lewisham-server",
 ]
@@ -358,8 +358,8 @@ wheels = [
 ]
 
 [[package]]
-name = "lewisham-client"
-source = { editable = "packages/lewisham-client" }
+name = "lewisham-council-client"
+source = { editable = "packages/lewisham-council-client" }
 dependencies = [
     { name = "httpx" },
     { name = "structlog" },
@@ -423,7 +423,7 @@ name = "lewisham-server"
 source = { editable = "packages/lewisham-server" }
 dependencies = [
     { name = "fastapi" },
-    { name = "lewisham-client" },
+    { name = "lewisham-council-client" },
     { name = "pydantic-settings" },
     { name = "rich" },
     { name = "structlog" },
@@ -441,7 +441,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "lewisham-client", editable = "packages/lewisham-client" },
+    { name = "lewisham-council-client", editable = "packages/lewisham-council-client" },
     { name = "pydantic-settings", specifier = ">=2.7.0" },
     { name = "rich", specifier = ">=15.0.0" },
     { name = "structlog", specifier = ">=26.1.0" },

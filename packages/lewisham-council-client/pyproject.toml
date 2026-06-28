@@ -1,5 +1,5 @@
 [project]
-name = "lewisham-client"
+name = "lewisham-council-client"
 dynamic = ["version"]
 requires-python = ">=3.12"
 description = "Python client for Lewisham Council civic data — bin collection schedules and address resolution."
@@ -16,8 +16,10 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Framework :: AsyncIO",
     "Topic :: Home Automation",
     "Topic :: Internet :: WWW/HTTP",
+    "Typing :: Typed",
 ]
 dependencies = [
     "httpx>=0.27.0",
@@ -35,7 +37,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.version]
 source = "vcs"
-fallback-version = "0.1.0"
+fallback-version = "0.0.0"
+raw-options = { git_describe_command = "git describe --dirty --tags --long --match 'lewisham-council-client-v*'", tag_regex = "^lewisham-council-client-v(?P<version>.+)$", local_scheme = "no-local-version" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lewisham_client"]

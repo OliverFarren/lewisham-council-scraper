@@ -1,6 +1,6 @@
 # lewisham-server
 
-FastAPI REST adapter over `lewisham-client`. Exposes Lewisham Council civic
+FastAPI REST adapter over `lewisham-council-client`. Exposes Lewisham Council civic
 data over HTTP. Useful when a non-Python consumer needs the data, or when
 several independent processes should share one upstream cache.
 

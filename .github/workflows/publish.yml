@@ -3,7 +3,7 @@ name: Publish
 on:
   push:
     tags:
-      - "v*"
+      - "lewisham-council-client-v*"
 
 # Docker publishing: uncomment and configure when ready to push to ghcr.io.
 # Requires the lewisham-server and lewisham-mcp Dockerfiles to be production-ready.
@@ -58,7 +58,7 @@ on:
 
 jobs:
   publish-pypi:
-    name: Publish lewisham-client to PyPI
+    name: Publish lewisham-council-client to PyPI
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -75,7 +75,7 @@ jobs:
           enable-cache: true
 
       - name: Build
-        run: uv build --package lewisham-client
+        run: uv build --package lewisham-council-client
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

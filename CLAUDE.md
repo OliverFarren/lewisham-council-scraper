@@ -8,7 +8,7 @@ boundaries, and tests that document behavior.
 
 - Follow `docs/design_002_client_first_architecture.md` for the accepted target
   architecture and dependency direction.
-- `packages/lewisham-client` is the reusable, framework-neutral Python client
+- `packages/lewisham-council-client` is the reusable, framework-neutral Python client
   and the core capability. All other packages depend on it.
 - `packages/lewisham-server` is an optional FastAPI adapter over the client.
 - `packages/lewisham-mcp` is an optional MCP adapter. Local MCP use should

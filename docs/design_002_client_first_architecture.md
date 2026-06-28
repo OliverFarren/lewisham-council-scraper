@@ -85,7 +85,7 @@ the default foundation for Home Assistant or local MCP use.
 ```mermaid
 flowchart TD
     upstream["Lewisham's undocumented HTTP endpoints"]
-    client["lewisham-client<br/>HTTP, parsing, models, errors"]
+    client["lewisham-council-client<br/>HTTP, parsing, models, errors"]
     ha["Home Assistant integration"]
     api["FastAPI service<br/>(optional)"]
     mcp["MCP adapter"]
@@ -100,7 +100,7 @@ flowchart TD
 
 ## Package boundaries
 
-### `lewisham-client`
+### `lewisham-council-client`
 
 The client package is the reusable core. It should own:
 
@@ -123,7 +123,7 @@ framework-neutral, but cache policy belongs to the consuming runtime.
 
 ### `lewisham-server`
 
-The server becomes an optional HTTP adapter over `lewisham-client`. It remains
+The server becomes an optional HTTP adapter over `lewisham-council-client`. It remains
 appropriate when:
 
 - A non-Python consumer needs the data.
@@ -142,7 +142,7 @@ for using the project.
 
 ### Home Assistant integration
 
-Home Assistant should use `lewisham-client` directly.
+Home Assistant should use `lewisham-council-client` directly.
 
 The integration can provide a configuration flow that:
 
@@ -165,7 +165,7 @@ service to operate.
 
 ### `lewisham-mcp`
 
-Local MCP use should also depend directly on `lewisham-client`. MCP is a tool
+Local MCP use should also depend directly on `lewisham-council-client`. MCP is a tool
 protocol and does not inherently require a REST service behind it.
 
 An API-backed MCP deployment may still be useful when the MCP process runs on a
@@ -246,7 +246,7 @@ its place as a shared local gateway.
 
 Steps 1–3 and 6 are complete. Steps 4, 5, and 7 remain.
 
-1. ~~Create `packages/lewisham-client`.~~
+1. ~~Create `packages/lewisham-council-client`.~~
 2. ~~Move the framework-neutral domain, upstream client, parser, and orchestration
    into it without changing observable behaviour.~~
 3. ~~Make `lewisham-server` consume the client package and retain its API schemas,

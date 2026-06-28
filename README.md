@@ -12,7 +12,7 @@ enough to embed in another Python application, which removes the need for a
 separate service as a prerequisite for every consumer.
 
 ```
-lewisham-client          ← reusable Python client (HTTP, parsing, domain models)
+lewisham-council-client          ← reusable Python client (HTTP, parsing, domain models)
     ├── lewisham-server  ← optional FastAPI adapter (REST API, Docker image)
     ├── lewisham-mcp     ← optional MCP adapter (tool protocol for AI assistants)
     └── (Home Assistant) ← planned: custom integration using the client directly
@@ -23,7 +23,7 @@ lewisham-client          ← reusable Python client (HTTP, parsing, domain model
 ```
 lewisham-council-scraper/
 ├── packages/
-│   ├── lewisham-client/   # Framework-neutral Python client (the core)
+│   ├── lewisham-council-client/   # Framework-neutral Python client (the core)
 │   ├── lewisham-server/   # FastAPI REST adapter
 │   └── lewisham-mcp/      # MCP adapter backed by lewisham-server
 ├── docs/                  # Design documents and spike findings
@@ -37,13 +37,13 @@ lewisham-council-scraper/
 
 ## Packages
 
-### lewisham-client
+### lewisham-council-client
 
 The reusable core. Provides asynchronous address resolution and waste
 collection schedule retrieval for any Lewisham UPRN. Has no dependency on
 FastAPI, Home Assistant, MCP, or any web framework.
 
-See [`packages/lewisham-client/README.md`](packages/lewisham-client/README.md).
+See [`packages/lewisham-council-client/README.md`](packages/lewisham-council-client/README.md).
 
 ### lewisham-server
 

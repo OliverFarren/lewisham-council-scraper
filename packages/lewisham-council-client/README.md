@@ -1,4 +1,4 @@
-# lewisham-client
+# lewisham-council-client
 
 Framework-neutral Python client for Lewisham Council civic data. Provides
 asynchronous address resolution and waste collection schedule retrieval for any
@@ -6,6 +6,17 @@ Lewisham UPRN.
 
 No dependency on FastAPI, Home Assistant, MCP, uvicorn, or any web framework.
 Designed to be embedded directly in another Python application.
+
+> **Unofficial** — not affiliated with or endorsed by Lewisham Council. Uses
+> undocumented public endpoints that may change without notice; the client
+> raises `UpstreamScraperChangedError` when the response shape no longer
+> matches expectations.
+
+## Installation
+
+```bash
+pip install lewisham-council-client
+```
 
 ## Usage
 

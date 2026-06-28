@@ -1,4 +1,4 @@
-"""Test configuration for lewisham-client.
+"""Test configuration for lewisham-council-client.
 
 Provides configure_test_logging — a minimal structlog JSON logging setup for
 tests that assert on log output via pytest's capsys. It mirrors the stdout/stderr

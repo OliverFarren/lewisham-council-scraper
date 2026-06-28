@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        package: [lewisham-client, lewisham-server, lewisham-mcp]
+        package: [lewisham-council-client, lewisham-server, lewisham-mcp]
     steps:
       - uses: actions/checkout@v4
 
@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        package: [lewisham-client, lewisham-server, lewisham-mcp]
+        package: [lewisham-council-client, lewisham-server, lewisham-mcp]
     steps:
       - uses: actions/checkout@v4
 
