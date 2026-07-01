@@ -166,8 +166,46 @@ async def test_lookup_addresses_rejects_malformed_payload() -> None:
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
         client = LewishamClient(http_client=http, clock=fixed_clock)
-        with pytest.raises(UpstreamScraperChangedError):
+        with pytest.raises(UpstreamScraperChangedError) as exc_info:
             await client.lookup_addresses("SE6 1SQ")
+
+    diagnostics = exc_info.value.diagnostics
+    assert diagnostics is not None
+    assert diagnostics.source == "client"
+    assert diagnostics.endpoint == "AddressFinder"
+    assert diagnostics.payload_sha256 is not None
+
+
+@pytest.mark.asyncio
+async def test_lookup_addresses_rejects_non_list_payload_with_diagnostics() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"not": "a list"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = LewishamClient(http_client=http, clock=fixed_clock)
+        with pytest.raises(UpstreamScraperChangedError) as exc_info:
+            await client.lookup_addresses("SE6 1SQ")
+
+    diagnostics = exc_info.value.diagnostics
+    assert diagnostics is not None
+    assert diagnostics.source == "client"
+    assert diagnostics.endpoint == "AddressFinder"
+
+
+@pytest.mark.asyncio
+async def test_lookup_addresses_rejects_invalid_json_with_diagnostics() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="not-json")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = LewishamClient(http_client=http, clock=fixed_clock)
+        with pytest.raises(UpstreamScraperChangedError) as exc_info:
+            await client.lookup_addresses("SE6 1SQ")
+
+    diagnostics = exc_info.value.diagnostics
+    assert diagnostics is not None
+    assert diagnostics.source == "client"
+    assert diagnostics.payload_sha256 is not None
 
 
 @pytest.mark.asyncio
@@ -213,6 +251,23 @@ async def test_get_collection_schedule_rejects_unexpected_status() -> None:
         client = LewishamClient(http_client=http, clock=fixed_clock)
         with pytest.raises(UpstreamScraperChangedError, match="HTTP 404"):
             await client.get_collection_schedule("100000000001")
+
+
+@pytest.mark.asyncio
+async def test_get_collection_schedule_attaches_status_diagnostics() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, text="<html>missing</html>")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = LewishamClient(http_client=http, clock=fixed_clock)
+        with pytest.raises(UpstreamScraperChangedError) as exc_info:
+            await client.get_collection_schedule("100000000001")
+
+    diagnostics = exc_info.value.diagnostics
+    assert diagnostics is not None
+    assert diagnostics.source == "client"
+    assert diagnostics.status_code == 404
+    assert diagnostics.endpoint == "roundsinformation"
 
 
 @pytest.mark.asyncio

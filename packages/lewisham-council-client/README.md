@@ -67,6 +67,65 @@ All errors are subclasses of `lewisham_client.DomainError`:
 | `UpstreamScraperChangedError` | Lewisham's response shape no longer matches expectations. |
 | `UpstreamUnavailableError` | Lewisham could not be reached (timeout or transport error). |
 
+## Diagnostics
+
+Every `DomainError` carries a `diagnostics: ContractDriftDiagnostics | None`
+attribute — useful for building a rich failure report without intercepting
+log output. It is set automatically by `LewishamParser`/`LewishamClient` when
+the failure was an upstream contract-drift (a parse failure or an unexpected
+HTTP response) and `None` otherwise — e.g. for validation errors,
+address-not-found errors, and cached negative results that did not
+themselves re-parse a payload:
+
+```python
+from lewisham_client import LewishamParser, LewishamService, UpstreamScraperChangedError
+
+service = LewishamService(parser=LewishamParser(include_raw_upstream=True))
+try:
+    schedule = await service.get_collection_schedule(uprn)
+except UpstreamScraperChangedError as err:
+    if err.diagnostics is not None:
+        print(err.diagnostics.source)            # "client" or "parser"
+        print(err.diagnostics.payload_sha256)     # always populated, no PII
+        print(err.diagnostics.payload_preview)    # parser only, opted in above
+```
+
+`source` (`"client"` or `"parser"`) tells you which other fields to expect:
+`"client"` diagnostics (an unexpected HTTP status, or a response
+`LewishamClient` itself could not decode/shape-validate) always populate
+`status_code`/`endpoint`; `"parser"` diagnostics (`LewishamParser` could not
+extract entries from the decoded HTML) never do. `payload_size_bytes` and
+`payload_sha256` are always populated and never contain PII.
+`payload_preview` (a truncated slice of the raw upstream body, which *may*
+contain PII scraped from the page) is only populated for `"parser"`
+diagnostics when the parser was constructed with `include_raw_upstream=True`
+— this is independent of the `logging` module's level, unlike the
+`parser_contract_drift` log event, which additionally requires the
+`lewisham_client.clients.lewisham.parser` logger to be at `DEBUG`.
+
+If a consumer wraps our exceptions in its own type — whether via explicit
+`raise SomeError(...) from err` or a bare `raise SomeError(...)` inside an
+`except` block — use `find_diagnostics` instead of catching the library's
+exceptions directly. It walks both the `__cause__` and `__context__` chains
+for you, preferring the more specific `__cause__` when both are set:
+
+```python
+from lewisham_client import find_diagnostics
+
+diagnostics = find_diagnostics(caught_exception)
+```
+
+`CollectionSchedule.data_quality()` returns a `DataQualitySummary` — counts
+of entries whose `next_collection` came from a council-published date vs. a
+derived weekday guess vs. nothing published — for a consumer that wants to
+report on schedule confidence without re-deriving it from
+`next_collection_basis` itself:
+
+```python
+summary = schedule.data_quality()
+print(summary.published_count, summary.weekday_derived_count)
+```
+
 ## Caching
 
 `LewishamService` uses an in-process `MemoryTtlCache` by default with

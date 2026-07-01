@@ -13,7 +13,7 @@ from lewisham_client.domain.errors import (
     CollectionScheduleNotFoundError,
     UpstreamScraperChangedError,
 )
-from lewisham_client.domain.models import CollectionEntry
+from lewisham_client.domain.models import CollectionEntry, ContractDriftDiagnostics
 
 _ENTRY_PATTERN = re.compile(
     r"<strong[^>]*>\s*(?P<waste_type>.*?)\s*</strong>\s*"
@@ -92,7 +92,12 @@ class LewishamParser:
 
             return ParsedCollectionSchedule(collections=collections)
         except UpstreamScraperChangedError as exc:
-            self._log_contract_drift(raw_body, exc)
+            exc.diagnostics = self._build_drift_diagnostics(raw_body, exc)
+            self._log_contract_drift(exc.diagnostics)
+            raise
+        except CollectionScheduleNotFoundError as exc:
+            exc.diagnostics = self._build_drift_diagnostics(raw_body, exc)
+            self._log_empty_schedule(exc.diagnostics)
             raise
 
     @staticmethod
@@ -199,22 +204,69 @@ class LewishamParser:
         without_tags = _TAG_PATTERN.sub(" ", value)
         return " ".join(html.unescape(without_tags).replace("\xa0", " ").split())
 
-    def _log_contract_drift(
+    def _build_drift_diagnostics(
         self,
         raw_body: str,
-        error: UpstreamScraperChangedError,
-    ) -> None:
+        error: UpstreamScraperChangedError | CollectionScheduleNotFoundError,
+    ) -> ContractDriftDiagnostics:
+        """Build a structured, returnable diagnostics snapshot for a drift failure.
+
+        payload_sha256/payload_size_bytes carry no PII and are always
+        included. payload_preview is included whenever the caller opted in
+        via include_raw_upstream, independent of the current logger level —
+        unlike logging (see _log_contract_drift), a caller inspecting
+        exc.diagnostics has already made an explicit choice to receive a
+        (truncated) slice of the raw payload.
+        """
+        preview: str | None = None
+        truncated = False
+        if self._include_raw_upstream and self._raw_upstream_max_chars > 0:
+            preview = raw_body[: self._raw_upstream_max_chars]
+            truncated = len(raw_body) > self._raw_upstream_max_chars
+
+        encoded_body = raw_body.encode("utf-8")
+        return ContractDriftDiagnostics(
+            error_type=type(error).__name__,
+            error_message=str(error),
+            source="parser",
+            payload_size_bytes=len(encoded_body),
+            payload_sha256=hashlib.sha256(encoded_body).hexdigest(),
+            payload_preview=preview,
+            payload_truncated=truncated,
+        )
+
+    def _log_contract_drift(self, diagnostics: ContractDriftDiagnostics) -> None:
         event: dict[str, object] = {
-            "payload_size_bytes": len(raw_body.encode("utf-8")),
-            "payload_sha256": hashlib.sha256(raw_body.encode("utf-8")).hexdigest(),
-            "error_type": type(error).__name__,
-            "error_message": str(error),
+            "payload_size_bytes": diagnostics.payload_size_bytes,
+            "payload_sha256": diagnostics.payload_sha256,
+            "error_type": diagnostics.error_type,
+            "error_message": diagnostics.error_message,
         }
         if self._should_include_raw_upstream():
-            event["payload_preview"] = raw_body[: self._raw_upstream_max_chars]
-            event["payload_truncated"] = len(raw_body) > self._raw_upstream_max_chars
+            event["payload_preview"] = diagnostics.payload_preview
+            event["payload_truncated"] = diagnostics.payload_truncated
 
         logger.error("parser_contract_drift", **event)
+
+    def _log_empty_schedule(self, diagnostics: ContractDriftDiagnostics) -> None:
+        """Log a freshly-parsed zero-entry result at WARNING, not ERROR.
+
+        A schedule can come back with no entries because the upstream
+        contract broke, or simply because nothing is published for that
+        UPRN — the parser cannot tell those apart from the HTML alone.
+        Logging this under the same "parser_contract_drift" ERROR event as a
+        genuine parse failure would fire alerting on an entirely ordinary
+        outcome, so it gets its own lower-severity event instead.
+        """
+        event: dict[str, object] = {
+            "payload_size_bytes": diagnostics.payload_size_bytes,
+            "payload_sha256": diagnostics.payload_sha256,
+        }
+        if self._should_include_raw_upstream():
+            event["payload_preview"] = diagnostics.payload_preview
+            event["payload_truncated"] = diagnostics.payload_truncated
+
+        logger.warning("parser_schedule_empty", **event)
 
     def _should_include_raw_upstream(self) -> bool:
         return (

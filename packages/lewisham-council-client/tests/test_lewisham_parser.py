@@ -250,6 +250,83 @@ def test_parser_rejects_invalid_calendar_date() -> None:
         parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
 
 
+def test_parser_attaches_diagnostics_without_preview_by_default() -> None:
+    """diagnostics.payload_sha256/size are always populated; preview is opt-in."""
+    parser = LewishamParser()
+    raw_body = "{not-json SECRET-UPSTREAM-PAYLOAD"
+
+    with pytest.raises(UpstreamScraperChangedError) as exc_info:
+        parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
+
+    diagnostics = exc_info.value.diagnostics
+    assert diagnostics is not None
+    assert diagnostics.error_type == "UpstreamScraperChangedError"
+    assert diagnostics.source == "parser"
+    assert diagnostics.payload_size_bytes == len(raw_body.encode("utf-8"))
+    assert diagnostics.payload_sha256 is not None
+    assert diagnostics.payload_preview is None
+
+
+def test_parser_attaches_preview_diagnostics_when_opted_in_no_debug() -> None:
+    """Unlike logging, the returned diagnostics preview needs no DEBUG level."""
+    parser = LewishamParser(include_raw_upstream=True, raw_upstream_max_chars=10)
+    raw_body = "{not-json SECRET-UPSTREAM-PAYLOAD"
+
+    with pytest.raises(UpstreamScraperChangedError) as exc_info:
+        parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
+
+    diagnostics = exc_info.value.diagnostics
+    assert diagnostics is not None
+    assert diagnostics.payload_preview == raw_body[:10]
+    assert diagnostics.payload_truncated is True
+
+
+def test_parser_attaches_diagnostics_to_empty_schedule_error() -> None:
+    """The zero-entries CollectionScheduleNotFoundError also carries diagnostics."""
+    parser = LewishamParser()
+    raw_body = encode_html(
+        """
+        <p>
+          If you think the above is incorrect or is missing please notify us
+        </p>
+        """
+    )
+
+    with pytest.raises(CollectionScheduleNotFoundError) as exc_info:
+        parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
+
+    diagnostics = exc_info.value.diagnostics
+    assert diagnostics is not None
+    assert diagnostics.error_type == "CollectionScheduleNotFoundError"
+    assert diagnostics.source == "parser"
+    assert diagnostics.payload_sha256 is not None
+
+
+def test_parser_logs_empty_schedule_as_warning_not_contract_drift(capsys) -> None:
+    """A genuinely-empty schedule must not raise ERROR-level alerting noise."""
+    configure_test_logging("debug")
+    parser = LewishamParser()
+    raw_body = encode_html(
+        """
+        <p>
+          If you think the above is incorrect or is missing please notify us
+        </p>
+        """
+    )
+
+    with pytest.raises(CollectionScheduleNotFoundError):
+        parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
+
+    captured = capsys.readouterr()
+    events = json_events(captured.err)
+
+    assert all(event["event"] != "parser_contract_drift" for event in events)
+    empty_event = next(
+        event for event in events if event["event"] == "parser_schedule_empty"
+    )
+    assert empty_event["level"] == "warning"
+
+
 def test_parser_normalises_non_breaking_spaces_and_frequency_case() -> None:
     parser = LewishamParser()
     raw_body = encode_html(

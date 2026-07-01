@@ -35,11 +35,14 @@ from lewisham_client.domain.errors import (
     InvalidUprnError,
     UpstreamScraperChangedError,
     UpstreamUnavailableError,
+    find_diagnostics,
 )
 from lewisham_client.domain.models import (
     AddressCandidate,
     CollectionEntry,
     CollectionSchedule,
+    ContractDriftDiagnostics,
+    DataQualitySummary,
 )
 from lewisham_client.services.lewisham_service import LewishamService, LewishamSource
 from lewisham_client.storage.cache_interface import TtlCache
@@ -58,6 +61,8 @@ __all__ = [
     "AddressCandidate",
     "CollectionEntry",
     "CollectionSchedule",
+    "ContractDriftDiagnostics",
+    "DataQualitySummary",
     # Domain errors
     "DomainError",
     "AddressNotFoundError",
@@ -66,6 +71,7 @@ __all__ = [
     "InvalidUprnError",
     "UpstreamScraperChangedError",
     "UpstreamUnavailableError",
+    "find_diagnostics",
     # Storage
     "TtlCache",
     "MemoryTtlCache",

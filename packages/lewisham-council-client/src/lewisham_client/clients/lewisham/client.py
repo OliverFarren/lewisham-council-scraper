@@ -1,6 +1,8 @@
+import hashlib
 from collections.abc import Callable
 from datetime import UTC, datetime
 from time import perf_counter
+from typing import NoReturn
 
 import httpx
 import structlog
@@ -22,7 +24,7 @@ from lewisham_client.domain.errors import (
     UpstreamScraperChangedError,
     UpstreamUnavailableError,
 )
-from lewisham_client.domain.models import AddressCandidate
+from lewisham_client.domain.models import AddressCandidate, ContractDriftDiagnostics
 
 logger = structlog.get_logger(__name__)
 
@@ -68,12 +70,13 @@ class LewishamClient:
 
         payload = self._read_json(response, endpoint_name="AddressFinder")
         if not isinstance(payload, list):
-            logger.error("upstream_contract_drift", endpoint="AddressFinder")
-            raise UpstreamScraperChangedError(
-                "AddressFinder returned a non-list response."
+            self._raise_contract_drift(
+                "AddressFinder returned a non-list response.",
+                endpoint_name="AddressFinder",
+                response=response,
             )
 
-        return [self._parse_address_candidate(item) for item in payload]
+        return [self._parse_address_candidate(item, response) for item in payload]
 
     async def get_address(self, uprn: str) -> AddressCandidate:
         """Resolve a single UPRN through AddressFinder's UPRN lookup variant."""
@@ -100,7 +103,7 @@ class LewishamClient:
                 f"No Lewisham address found for UPRN {clean_uprn}."
             )
 
-        return self._parse_address_candidate(payload)
+        return self._parse_address_candidate(payload, response)
 
     async def get_collection_schedule(self, uprn: str) -> CollectionScheduleRaw:
         """Fetch the raw JSON-encoded Sitecore HTML schedule for one UPRN."""
@@ -224,24 +227,13 @@ class LewishamClient:
             return
 
         if response.status_code == 500:
-            logger.error(
-                "upstream_contract_drift",
-                endpoint=endpoint_name,
-                status_code=response.status_code,
-                response_size_bytes=len(response.content),
-            )
-            raise UpstreamScraperChangedError(
-                f"{endpoint_name} returned HTTP 500 for a validated request."
-            )
+            message = f"{endpoint_name} returned HTTP 500 for a validated request."
+        else:
+            status_code = response.status_code
+            message = f"{endpoint_name} returned unexpected HTTP {status_code}."
 
-        logger.error(
-            "upstream_contract_drift",
-            endpoint=endpoint_name,
-            status_code=response.status_code,
-            response_size_bytes=len(response.content),
-        )
-        raise UpstreamScraperChangedError(
-            f"{endpoint_name} returned unexpected HTTP {response.status_code}."
+        LewishamClient._raise_contract_drift(
+            message, endpoint_name=endpoint_name, response=response
         )
 
     @staticmethod
@@ -249,48 +241,87 @@ class LewishamClient:
         try:
             return response.json()
         except ValueError as exc:
-            logger.error(
-                "upstream_contract_drift",
-                endpoint=endpoint_name,
-                status_code=response.status_code,
-                response_size_bytes=len(response.content),
+            LewishamClient._raise_contract_drift(
+                f"{endpoint_name} returned invalid JSON.",
+                endpoint_name=endpoint_name,
+                response=response,
+                cause=exc,
             )
-            raise UpstreamScraperChangedError(
-                f"{endpoint_name} returned invalid JSON."
-            ) from exc
 
     @staticmethod
-    def _parse_address_candidate(payload: object) -> AddressCandidate:
+    def _parse_address_candidate(
+        payload: object, response: httpx.Response
+    ) -> AddressCandidate:
         if not isinstance(payload, dict):
-            logger.error("upstream_contract_drift", endpoint="AddressFinder")
-            raise UpstreamScraperChangedError(
-                "AddressFinder returned an address item that is not an object."
+            LewishamClient._raise_contract_drift(
+                "AddressFinder returned an address item that is not an object.",
+                endpoint_name="AddressFinder",
+                response=response,
             )
 
         uprn_value: object = payload.get("Uprn")
         title_value: object = payload.get("Title")
 
         if isinstance(uprn_value, bool) or not isinstance(uprn_value, int | str):
-            logger.error("upstream_contract_drift", endpoint="AddressFinder")
-            raise UpstreamScraperChangedError(
-                "AddressFinder address item is missing a usable Uprn value."
+            LewishamClient._raise_contract_drift(
+                "AddressFinder address item is missing a usable Uprn value.",
+                endpoint_name="AddressFinder",
+                response=response,
             )
 
         if not isinstance(title_value, str):
-            logger.error("upstream_contract_drift", endpoint="AddressFinder")
-            raise UpstreamScraperChangedError(
-                "AddressFinder address item is missing a Title value."
+            LewishamClient._raise_contract_drift(
+                "AddressFinder address item is missing a Title value.",
+                endpoint_name="AddressFinder",
+                response=response,
             )
 
         uprn = str(uprn_value).strip()
         title = " ".join(title_value.replace("\xa0", " ").split())
         if not uprn or not title:
-            logger.error("upstream_contract_drift", endpoint="AddressFinder")
-            raise UpstreamScraperChangedError(
-                "AddressFinder returned an address item with empty fields."
+            LewishamClient._raise_contract_drift(
+                "AddressFinder returned an address item with empty fields.",
+                endpoint_name="AddressFinder",
+                response=response,
             )
 
         return AddressCandidate(uprn=uprn, title=title)
+
+    @staticmethod
+    def _raise_contract_drift(
+        message: str,
+        *,
+        endpoint_name: str,
+        response: httpx.Response,
+        cause: BaseException | None = None,
+    ) -> NoReturn:
+        """Log and raise UpstreamScraperChangedError with diagnostics attached.
+
+        The single raise point for every upstream contract-drift failure in
+        this client, so every drift raise site — present and future — gets a
+        ContractDriftDiagnostics for free instead of needing its own opt-in.
+        """
+        logger.error(
+            "upstream_contract_drift",
+            endpoint=endpoint_name,
+            status_code=response.status_code,
+            response_size_bytes=len(response.content),
+        )
+        error = UpstreamScraperChangedError(
+            message,
+            diagnostics=ContractDriftDiagnostics(
+                error_type="UpstreamScraperChangedError",
+                error_message=message,
+                source="client",
+                status_code=response.status_code,
+                endpoint=endpoint_name,
+                payload_size_bytes=len(response.content),
+                payload_sha256=hashlib.sha256(response.content).hexdigest(),
+            ),
+        )
+        if cause is not None:
+            raise error from cause
+        raise error
 
 
 def _duration_ms(start_time: float) -> float:

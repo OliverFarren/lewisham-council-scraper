@@ -188,6 +188,24 @@ async def test_service_caches_negative_schedule_results() -> None:
 
 
 @pytest.mark.asyncio
+async def test_schedule_not_found_diagnostics_only_from_parser_failure() -> None:
+    """The parser-sourced failure carries diagnostics; the cached one does not."""
+    clock = MutableClock()
+    client = FakeLewishamClient(raw_body=empty_schedule_body())
+    service = LewishamService(client=client, clock=clock)
+
+    with pytest.raises(CollectionScheduleNotFoundError) as first_exc_info:
+        await service.get_collection_schedule("100000000001")
+
+    with pytest.raises(CollectionScheduleNotFoundError) as second_exc_info:
+        await service.get_collection_schedule("100000000001")
+
+    assert first_exc_info.value.diagnostics is not None
+    assert first_exc_info.value.diagnostics.payload_sha256 is not None
+    assert second_exc_info.value.diagnostics is None
+
+
+@pytest.mark.asyncio
 async def test_schedule_cache_expires_after_ttl() -> None:
     clock = MutableClock()
     client = FakeLewishamClient()
