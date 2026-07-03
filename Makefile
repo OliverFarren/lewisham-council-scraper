@@ -5,6 +5,7 @@ CLIENT_PACKAGE := lewisham-council-client
 SERVER_PACKAGE := lewisham-server
 CLIENT_DIR := packages/$(CLIENT_PACKAGE)
 SERVER_DIR := packages/$(SERVER_PACKAGE)
+COVERAGE_MIN := 90
 
 .PHONY: help
 help: ## Show available targets.
@@ -46,7 +47,16 @@ typecheck-server: ## Run mypy for lewisham-server.
 	cd $(SERVER_DIR) && $(UV) run --package $(SERVER_PACKAGE) mypy src/
 
 .PHONY: test
-test: test-client test-server ## Run pytest for every package.
+test: ## Run all tests with the CI coverage threshold.
+	$(UV) run pytest -v \
+		$(CLIENT_DIR)/tests \
+		$(SERVER_DIR)/tests \
+		--cov=lewisham_client \
+		--cov=lewisham_server \
+		--cov-branch \
+		--cov-report=term-missing \
+		--cov-report=xml \
+		--cov-fail-under=$(COVERAGE_MIN)
 
 .PHONY: test-client
 test-client: ## Run lewisham-council-client tests.

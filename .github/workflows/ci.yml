@@ -54,11 +54,12 @@ jobs:
         working-directory: packages/${{ matrix.package }}
 
   test:
-    name: pytest (${{ matrix.package }})
+    name: pytest (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        package: [lewisham-council-client, lewisham-server]
+        python-version: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
 
@@ -68,14 +69,28 @@ jobs:
           enable-cache: true
 
       - name: Install Python
-        run: uv python install
+        run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --all-packages --all-groups
+        run: >
+          uv sync
+          --all-packages
+          --all-groups
+          --python ${{ matrix.python-version }}
 
       - name: pytest
-        run: uv run --package ${{ matrix.package }} pytest
-        working-directory: packages/${{ matrix.package }}
+        run: make test
+        env:
+          UV_PYTHON: ${{ matrix.python-version }}
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          disable_search: true
+          fail_ci_if_error: false
 
   test-client-python-312:
     name: pytest (lewisham-council-client, Python 3.12 wheel)
