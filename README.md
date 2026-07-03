@@ -2,7 +2,7 @@
 
 A monorepo for accessing Lewisham Council civic data. The core is a reusable
 Python client that speaks directly to Lewisham's undocumented HTTP endpoints.
-FastAPI and MCP adapters are optional layers on top.
+A FastAPI adapter is an optional layer on top.
 
 ## Architecture
 
@@ -14,7 +14,6 @@ separate service as a prerequisite for every consumer.
 ```
 lewisham-council-client          ← reusable Python client (HTTP, parsing, domain models)
     ├── lewisham-server  ← optional FastAPI adapter (REST API, Docker image)
-    ├── lewisham-mcp     ← optional MCP adapter (tool protocol for AI assistants)
     └── (Home Assistant) ← planned: custom integration using the client directly
 ```
 
@@ -24,8 +23,7 @@ lewisham-council-client          ← reusable Python client (HTTP, parsing, doma
 lewisham-council-scraper/
 ├── packages/
 │   ├── lewisham-council-client/   # Framework-neutral Python client (the core)
-│   ├── lewisham-server/   # FastAPI REST adapter
-│   └── lewisham-mcp/      # MCP adapter backed by lewisham-server
+│   └── lewisham-server/   # FastAPI REST adapter
 ├── docs/                  # Design documents and spike findings
 ├── .github/
 │   └── workflows/
@@ -53,11 +51,6 @@ upstream cache. Distributed as a Docker image.
 
 See [`packages/lewisham-server/README.md`](packages/lewisham-server/README.md).
 
-### lewisham-mcp
-
-MCP server that exposes lewisham-server data as tools for AI assistants.
-Requires a running lewisham-server instance.
-
 ## Development
 
 Install [uv](https://docs.astral.sh/uv/), then use the top-level Makefile:
@@ -83,12 +76,10 @@ make test-server
 
 ```bash
 make docker-build-server
-make docker-build-mcp
 ```
 
 Or directly:
 
 ```bash
 docker build -f packages/lewisham-server/Dockerfile -t lewisham-server .
-docker build -f packages/lewisham-mcp/Dockerfile    -t lewisham-mcp .
 ```

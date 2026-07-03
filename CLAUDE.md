@@ -11,8 +11,8 @@ boundaries, and tests that document behavior.
 - `packages/lewisham-council-client` is the reusable, framework-neutral Python client
   and the core capability. All other packages depend on it.
 - `packages/lewisham-server` is an optional FastAPI adapter over the client.
-- `packages/lewisham-mcp` is an optional MCP adapter. Local MCP use should
-  consume the client directly rather than require the REST service.
+- An MCP adapter, if added, must consume the client directly rather than
+  require the REST service.
 - A Home Assistant integration should consume the client directly and must not
   require users to deploy the REST service.
 - Keep concerns separated:

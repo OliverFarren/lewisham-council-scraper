@@ -172,6 +172,13 @@ An API-backed MCP deployment may still be useful when the MCP process runs on a
 different machine or must share a central cache with other consumers. That is a
 deployment choice rather than a package dependency.
 
+An earlier `packages/lewisham-mcp` existed as a pre-pivot stub: it called a
+REST endpoint that no longer exists and took no UPRN, so it could not work
+even in principle, and it contradicted the client-first direction above. It
+was removed on 2026-07-03 rather than kept as a non-functional placeholder.
+Step 4 below is therefore unstarted, not in progress — a fresh
+`lewisham-mcp` should be built against `lewisham-council-client` directly.
+
 ## Domain and compatibility contracts
 
 The shared domain model is the source of truth for collection data. It retains
@@ -251,7 +258,8 @@ Steps 1–3 and 6 are complete. Steps 4, 5, and 7 remain.
    into it without changing observable behaviour.~~
 3. ~~Make `lewisham-server` consume the client package and retain its API schemas,
    runtime settings, logging, and cache policy.~~
-4. Make `lewisham-mcp` consume the client directly for local operation.
+4. Build `lewisham-mcp` to consume the client directly for local operation
+   (the earlier non-functional stub was removed; see the note above).
 5. Add a Home Assistant custom integration backed by the client.
 6. ~~Reposition the repository documentation so the Python client is the core and
    REST, Home Assistant, and MCP are supported modalities.~~

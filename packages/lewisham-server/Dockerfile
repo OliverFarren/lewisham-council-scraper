@@ -16,11 +16,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Copy workspace config and lock file first for layer caching
 COPY pyproject.toml uv.lock* ./
 COPY packages/lewisham-server/pyproject.toml packages/lewisham-server/
+COPY packages/lewisham-council-client/pyproject.toml packages/lewisham-council-client/README.md packages/lewisham-council-client/
 
 # Install only this package's production deps
 RUN uv sync --frozen --no-dev --package lewisham-server --no-install-project
 
 COPY packages/lewisham-server/src/ packages/lewisham-server/src/
+COPY packages/lewisham-council-client/src/ packages/lewisham-council-client/src/
 
 RUN uv sync --frozen --no-dev --package lewisham-server \
     && groupadd --system --gid 10001 lewisham \

@@ -6,7 +6,7 @@ on:
       - "lewisham-council-client-v*"
 
 # Docker publishing: uncomment and configure when ready to push to ghcr.io.
-# Requires the lewisham-server and lewisham-mcp Dockerfiles to be production-ready.
+# Requires the lewisham-server Dockerfile to be production-ready.
 #
 # jobs:
 #   docker:
@@ -17,7 +17,7 @@ on:
 #       packages: write
 #     strategy:
 #       matrix:
-#         package: [lewisham-server, lewisham-mcp]
+#         package: [lewisham-server]
 #     steps:
 #       - uses: actions/checkout@v4
 #

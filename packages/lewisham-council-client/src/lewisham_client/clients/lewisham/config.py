@@ -1,3 +1,5 @@
+from importlib.metadata import version
+
 BASE_URL = "https://lewisham.gov.uk"
 COLLECTION_PAGE_URL = (
     f"{BASE_URL}/myservices/recycling-and-rubbish/your-bins/collection"
@@ -11,4 +13,4 @@ ROUNDS_INFORMATION_PATH = "/api/roundsinformation"
 ROUNDS_INFORMATION_ITEM_GUID = "{23423835-d2a6-41b1-9637-29e5e8cc2df7}"
 
 REQUEST_TIMEOUT_SECONDS = 10.0
-USER_AGENT = "lewisham-council-scraper/0.1"
+USER_AGENT = f"lewisham-client/{version('lewisham-council-client')}"

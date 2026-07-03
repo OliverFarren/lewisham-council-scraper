@@ -76,9 +76,19 @@ Local authority sites host a vast amount of high-utility information that citize
 
 ## The MCP layer
 
-The core server is a lightweight REST API that returns structured JSON. It can be used directly by custom scripts, webhooks, or native smart home platforms like Home Assistant via a standard [`rest` sensor](https://www.home-assistant.io/integrations/rest/).
+> **Architecture update:** This section describes the original API-first
+> framing of MCP support. [Design 002](design_002_client_first_architecture.md#lewisham-mcp)
+> supersedes that framing: local MCP use should depend on
+> `lewisham-council-client` directly rather than on the REST API described
+> below, which is now optional infrastructure rather than the core. A prior
+> `packages/lewisham-mcp` stub called a REST endpoint that never existed and
+> was removed on 2026-07-03; a client-first MCP package has not yet been
+> built. The motivation for an MCP layer itself, described below, still
+> holds.
 
-The Model Context Protocol (MCP) package included in this repository is an entirely optional integration layer. MCP is an [open standard](https://modelcontextprotocol.io/) designed to safely connect large language models (LLMs) to local developer tools and data sources. By wrapping this API in an MCP server, conversational assistants can interact with the endpoints natively. Instead of configuring rigid API calls or brittle parsing logic, a home assistant or LLM can interpret natural language queries directly:
+The server described in this section is a lightweight REST API that returns structured JSON. It can be used directly by custom scripts, webhooks, or native smart home platforms like Home Assistant via a standard [`rest` sensor](https://www.home-assistant.io/integrations/rest/).
+
+The Model Context Protocol (MCP) is an entirely optional integration layer on top of the client or the API. MCP is an [open standard](https://modelcontextprotocol.io/) designed to safely connect large language models (LLMs) to local developer tools and data sources. By exposing this data through an MCP server, conversational assistants can interact with it natively. Instead of configuring rigid API calls or brittle parsing logic, a home assistant or LLM can interpret natural language queries directly:
 
 ```json
 // Example of an MCP tool invocation behind the scenes
