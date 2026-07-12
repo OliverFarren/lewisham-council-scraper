@@ -4,6 +4,8 @@ All notable changes to `lewisham-council-client` are documented here.
 
 ## Unreleased
 
+## 0.3.0
+
 ### Changed
 
 - Replaced the client's direct structlog dependency with named standard-library
