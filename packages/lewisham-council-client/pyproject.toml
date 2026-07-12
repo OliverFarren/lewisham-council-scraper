@@ -68,3 +68,6 @@ mypy_path = "src"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "live: makes deliberate live HTTP requests against Lewisham endpoints",
+]

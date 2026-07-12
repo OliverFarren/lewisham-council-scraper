@@ -1,2 +1,8 @@
 [tool.uv.workspace]
 members = ["packages/*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+    "live: makes deliberate live HTTP requests against Lewisham endpoints",
+]

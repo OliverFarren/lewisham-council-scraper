@@ -1,6 +1,7 @@
 # lewisham-council-scraper
 
 [![CI](https://github.com/OliverFarren/lewisham-council-scraper/actions/workflows/ci.yml/badge.svg)](https://github.com/OliverFarren/lewisham-council-scraper/actions/workflows/ci.yml)
+[![Live endpoint check](https://github.com/OliverFarren/lewisham-council-scraper/actions/workflows/live-endpoint-check.yml/badge.svg)](https://github.com/OliverFarren/lewisham-council-scraper/actions/workflows/live-endpoint-check.yml)
 [![codecov](https://codecov.io/gh/OliverFarren/lewisham-council-scraper/branch/main/graph/badge.svg)](https://codecov.io/gh/OliverFarren/lewisham-council-scraper)
 [![Python](https://img.shields.io/badge/Python-3.12%20%7C%203.13%20%7C%203.14-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 
@@ -31,8 +32,9 @@ lewisham-council-scraper/
 ├── docs/                  # Design documents and spike findings
 ├── .github/
 │   └── workflows/
-│       ├── ci.yml         # Lint, typecheck, test on push/PR
-│       └── publish.yml    # Publish lewisham-council-client to PyPI on tag
+│       ├── ci.yml                  # Lint, typecheck, test on push/PR
+│       ├── live-endpoint-check.yml # Daily bounded live endpoint check
+│       └── publish.yml             # Publish lewisham-council-client to PyPI on tag
 ├── pyproject.toml         # uv workspace root
 └── .python-version        # Python version pin
 ```
@@ -78,7 +80,12 @@ make typecheck-client
 make typecheck-server
 make test-client
 make test-server
+make live-check
 ```
+
+`make live-check` is intentionally separate from `make check`. It performs a
+bounded live smoke test against Lewisham's endpoints and expects
+`LEWISHAM_LIVE_TEST_UPRN` for the secret-backed domestic schedule check.
 
 ## Docker
 

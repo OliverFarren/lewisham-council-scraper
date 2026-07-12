@@ -49,6 +49,7 @@ typecheck-server: ## Run mypy for lewisham-server.
 .PHONY: test
 test: ## Run all tests with the CI coverage threshold.
 	$(UV) run pytest -v \
+		-m "not live" \
 		$(CLIENT_DIR)/tests \
 		$(SERVER_DIR)/tests \
 		--cov=lewisham_client \
@@ -60,7 +61,13 @@ test: ## Run all tests with the CI coverage threshold.
 
 .PHONY: test-client
 test-client: ## Run lewisham-council-client tests.
-	cd $(CLIENT_DIR) && $(UV) run --package $(CLIENT_PACKAGE) pytest
+	cd $(CLIENT_DIR) && $(UV) run --package $(CLIENT_PACKAGE) pytest -m "not live"
+
+.PHONY: live-check
+live-check: ## Run bounded live checks against Lewisham's upstream endpoints.
+	LEWISHAM_RUN_LIVE_TESTS=1 $(UV) run --package $(CLIENT_PACKAGE) pytest -v \
+		-m live \
+		$(CLIENT_DIR)/tests/live
 
 .PHONY: test-server
 test-server: ## Run lewisham-server tests.
