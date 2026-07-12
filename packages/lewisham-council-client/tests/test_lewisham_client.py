@@ -1,9 +1,9 @@
 import json
+import logging
 from datetime import UTC, datetime
 
 import httpx
 import pytest
-from conftest import configure_test_logging
 
 from lewisham_client.clients.lewisham import LewishamClient
 from lewisham_client.clients.lewisham.config import (
@@ -18,13 +18,22 @@ from lewisham_client.domain.errors import (
     UpstreamUnavailableError,
 )
 
+_CLIENT_LOGGER = "lewisham_client.clients.lewisham.client"
+
 
 def fixed_clock() -> datetime:
     return datetime(2026, 6, 26, 12, 0, tzinfo=UTC)
 
 
-def json_events(output: str) -> list[dict[str, object]]:
-    return [json.loads(line) for line in output.splitlines()]
+def _event_record(
+    caplog: pytest.LogCaptureFixture,
+    event: str,
+) -> logging.LogRecord:
+    return next(
+        record
+        for record in caplog.records
+        if record.name == _CLIENT_LOGGER and record.getMessage() == event
+    )
 
 
 @pytest.mark.asyncio
@@ -56,8 +65,10 @@ async def test_lookup_addresses_returns_normalised_candidates() -> None:
 
 
 @pytest.mark.asyncio
-async def test_client_logs_upstream_request_and_response_metadata(capsys) -> None:
-    configure_test_logging("debug")
+async def test_client_logs_upstream_request_and_response_metadata(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG, logger=_CLIENT_LOGGER)
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.params["postcodeOrStreet"] == "SE6 1SQ"
@@ -70,22 +81,19 @@ async def test_client_logs_upstream_request_and_response_metadata(capsys) -> Non
         client = LewishamClient(http_client=http, clock=fixed_clock)
         await client.lookup_addresses("SE6 1SQ")
 
-    captured = capsys.readouterr()
-    events = json_events(captured.out)
-    request_event = next(
-        event for event in events if event["event"] == "upstream_request"
-    )
-    response_event = next(
-        event for event in events if event["event"] == "upstream_response"
-    )
+    request_event = _event_record(caplog, "upstream_request")
+    response_event = _event_record(caplog, "upstream_response")
 
-    assert request_event["endpoint"] == "AddressFinder"
-    assert request_event["upstream_path"] == ADDRESS_FINDER_PATH
-    assert response_event["status_code"] == 200
-    assert response_event["response_size_bytes"] > 0
-    assert "SE6 1SQ" not in captured.out
-    assert "100000000001" not in captured.out
-    assert "1 Example Street" not in captured.out
+    assert request_event.levelno == logging.DEBUG
+    assert request_event.endpoint == "AddressFinder"
+    assert request_event.upstream_path == ADDRESS_FINDER_PATH
+    assert response_event.levelno == logging.DEBUG
+    assert response_event.status_code == 200
+    assert response_event.response_size_bytes > 0
+    captured_records = repr([record.__dict__ for record in caplog.records])
+    assert "SE6 1SQ" not in captured_records
+    assert "100000000001" not in captured_records
+    assert "1 Example Street" not in captured_records
 
 
 @pytest.mark.asyncio
@@ -209,8 +217,10 @@ async def test_lookup_addresses_rejects_invalid_json_with_diagnostics() -> None:
 
 
 @pytest.mark.asyncio
-async def test_client_logs_upstream_contract_drift_without_payload(capsys) -> None:
-    configure_test_logging("debug")
+async def test_client_logs_upstream_contract_drift_without_payload(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG, logger=_CLIENT_LOGGER)
 
     def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=[{"Uprn": 100000000001}])
@@ -220,15 +230,14 @@ async def test_client_logs_upstream_contract_drift_without_payload(capsys) -> No
         with pytest.raises(UpstreamScraperChangedError):
             await client.lookup_addresses("SE6 1SQ")
 
-    captured = capsys.readouterr()
-    events = json_events(captured.err)
-    drift_event = next(
-        event for event in events if event["event"] == "upstream_contract_drift"
-    )
+    drift_event = _event_record(caplog, "upstream_contract_drift_detected")
 
-    assert drift_event["endpoint"] == "AddressFinder"
-    assert "SE6 1SQ" not in captured.err
-    assert "100000000001" not in captured.err
+    assert drift_event.levelno == logging.DEBUG
+    assert drift_event.endpoint == "AddressFinder"
+    assert all(record.levelno < logging.WARNING for record in caplog.records)
+    captured_records = repr([record.__dict__ for record in caplog.records])
+    assert "SE6 1SQ" not in captured_records
+    assert "100000000001" not in captured_records
 
 
 @pytest.mark.asyncio
@@ -271,11 +280,25 @@ async def test_get_collection_schedule_attaches_status_diagnostics() -> None:
 
 
 @pytest.mark.asyncio
-async def test_transport_error_becomes_upstream_unavailable() -> None:
+async def test_transport_error_becomes_upstream_unavailable_without_visible_log(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG, logger=_CLIENT_LOGGER)
+
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("connection failed", request=request)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
         client = LewishamClient(http_client=http, clock=fixed_clock)
-        with pytest.raises(UpstreamUnavailableError):
+        with pytest.raises(UpstreamUnavailableError) as exc_info:
             await client.lookup_addresses("SE6 1SQ")
+
+    event = _event_record(caplog, "upstream_transport_error")
+    assert event.levelno == logging.DEBUG
+
+    diagnostics = exc_info.value.diagnostics
+    assert diagnostics is not None
+    assert diagnostics.endpoint == "AddressFinder"
+    assert diagnostics.error_type == "ConnectError"
+    assert diagnostics.duration_ms is not None
+    assert all(record.levelno < logging.WARNING for record in caplog.records)

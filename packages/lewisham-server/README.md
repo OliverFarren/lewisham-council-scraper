@@ -87,6 +87,12 @@ Logs are split by severity across the container streams: `DEBUG` and `INFO` go
 to stdout, `WARNING` and above go to stderr. Uvicorn access logs are suppressed
 in favour of one sanitised `http_request` event per request.
 
+The server also owns the visible domain events produced while translating
+client outcomes into HTTP responses. Successful address and schedule lookups
+are logged at `INFO`, temporary upstream failures at `WARNING`, and confirmed
+upstream contract drift at `ERROR`. Client cache, transport, and parser details
+join the same structured output when debug logging is enabled.
+
 By default, logs do not include UPRNs, addresses, postcode queries, client IPs,
 or raw upstream response bodies.
 
@@ -102,7 +108,7 @@ JSON format (for log aggregators such as Vector, Promtail, or ELK):
 {"method":"GET","route":"/bins/{uprn}/collections","status_code":200,"duration_ms":45.2,"event":"http_request","level":"info","timestamp":"2026-06-26T12:00:00Z"}
 ```
 
-If Lewisham changes its response shape and a `parser_contract_drift` error
+If Lewisham changes its response shape and an `upstream_contract_drift` error
 appears, enable the payload preview temporarily to capture a failing response:
 
 ```bash

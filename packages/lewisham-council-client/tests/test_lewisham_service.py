@@ -1,14 +1,16 @@
 import json
+import logging
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from conftest import configure_test_logging
 
 from lewisham_client.clients.lewisham import CollectionScheduleRaw
 from lewisham_client.domain.errors import CollectionScheduleNotFoundError
 from lewisham_client.domain.models import AddressCandidate
 from lewisham_client.services import LewishamService
 from lewisham_client.storage import MemoryTtlCache
+
+_SERVICE_LOGGER = "lewisham_client.services.lewisham_service"
 
 
 class MutableClock:
@@ -78,8 +80,15 @@ def empty_schedule_body() -> str:
     return json.dumps("<p>If the above is incorrect please notify us</p>")
 
 
-def json_events(output: str) -> list[dict[str, object]]:
-    return [json.loads(line) for line in output.splitlines()]
+def _event_records(
+    caplog: pytest.LogCaptureFixture,
+    event: str,
+) -> list[logging.LogRecord]:
+    return [
+        record
+        for record in caplog.records
+        if record.name == _SERVICE_LOGGER and record.getMessage() == event
+    ]
 
 
 @pytest.mark.asyncio
@@ -114,8 +123,32 @@ async def test_lookup_addresses_caches_results_and_populates_address_cache() -> 
 
 
 @pytest.mark.asyncio
-async def test_lookup_addresses_logs_safe_cache_and_completion_events(capsys) -> None:
-    configure_test_logging("debug")
+async def test_client_writes_nothing_without_logging_configuration(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    service = LewishamService(
+        client=FakeLewishamClient(
+            addresses=[
+                AddressCandidate(
+                    uprn="100000000001",
+                    title="1 Example Street",
+                )
+            ]
+        )
+    )
+
+    await service.lookup_addresses("SE6 1SQ")
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+
+
+@pytest.mark.asyncio
+async def test_lookup_addresses_logs_safe_cache_and_completion_events(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG, logger=_SERVICE_LOGGER)
     clock = MutableClock()
     address = AddressCandidate(uprn="100000000001", title="1 Example Street")
     client = FakeLewishamClient(addresses=[address])
@@ -124,37 +157,41 @@ async def test_lookup_addresses_logs_safe_cache_and_completion_events(capsys) ->
     await service.lookup_addresses("SE6 1SQ")
     await service.lookup_addresses("SE6 1SQ")
 
-    captured = capsys.readouterr()
-    events = json_events(captured.out)
-    event_names = [event["event"] for event in events]
+    event_names = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == _SERVICE_LOGGER
+    ]
 
     assert "cache_miss" in event_names
     assert "cache_store" in event_names
     assert "cache_hit" in event_names
     assert event_names.count("address_lookup_completed") == 2
-    assert "SE6 1SQ" not in captured.out
-    assert "100000000001" not in captured.out
-    assert "1 Example Street" not in captured.out
+    assert all(record.levelno == logging.DEBUG for record in caplog.records)
+    captured_records = repr([record.__dict__ for record in caplog.records])
+    assert "SE6 1SQ" not in captured_records
+    assert "100000000001" not in captured_records
+    assert "1 Example Street" not in captured_records
 
 
 @pytest.mark.asyncio
-async def test_get_collection_schedule_logs_safe_completion_event(capsys) -> None:
-    configure_test_logging("debug")
+async def test_get_collection_schedule_logs_safe_completion_event(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG, logger=_SERVICE_LOGGER)
     clock = MutableClock()
     client = FakeLewishamClient()
     service = LewishamService(client=client, clock=clock)
 
     await service.get_collection_schedule("100000000001")
 
-    captured = capsys.readouterr()
-    events = json_events(captured.out)
-    completion_event = next(
-        event for event in events if event["event"] == "schedule_lookup_completed"
-    )
+    completion_event = _event_records(caplog, "schedule_lookup_completed")[0]
 
-    assert completion_event["collection_count"] == 1
-    assert "100000000001" not in captured.out
-    assert "1 Example Street" not in captured.out
+    assert completion_event.levelno == logging.DEBUG
+    assert completion_event.collection_count == 1
+    captured_records = repr([record.__dict__ for record in caplog.records])
+    assert "100000000001" not in captured_records
+    assert "1 Example Street" not in captured_records
 
 
 @pytest.mark.asyncio

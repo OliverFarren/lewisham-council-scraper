@@ -48,6 +48,26 @@ def test_text_logging_splits_low_and_high_severity_streams(capsys) -> None:
     assert "warning_event" in captured.err
 
 
+def test_stdlib_extra_fields_use_structured_rendering_and_redaction(capsys) -> None:
+    configure_logging(Settings(log_format="json", log_level="debug"))
+
+    logging.getLogger("lewisham_client.example").debug(
+        "client_cache_event",
+        extra={
+            "namespace": "schedule",
+            "uprn": "100000000001",
+        },
+    )
+
+    captured = capsys.readouterr()
+    event = json.loads(captured.out)
+
+    assert event["event"] == "client_cache_event"
+    assert event["namespace"] == "schedule"
+    assert event["uprn_redacted"] is True
+    assert "100000000001" not in captured.out
+
+
 def test_uvicorn_access_logger_is_suppressed() -> None:
     configure_logging(Settings(log_format="json", log_level="info"))
 

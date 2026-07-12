@@ -6,8 +6,6 @@ import re
 from datetime import date, datetime, timedelta
 from typing import Literal
 
-import structlog
-
 from lewisham_client.clients.lewisham.models import ParsedCollectionSchedule
 from lewisham_client.domain.errors import (
     CollectionScheduleNotFoundError,
@@ -54,7 +52,7 @@ _WEEKDAY_NAMES: dict[str, int] = {
     "saturday": 5,
     "sunday": 6,
 }
-logger = structlog.get_logger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 
 class LewishamParser:
@@ -246,17 +244,16 @@ class LewishamParser:
             event["payload_preview"] = diagnostics.payload_preview
             event["payload_truncated"] = diagnostics.payload_truncated
 
-        logger.error("parser_contract_drift", **event)
+        _LOGGER.debug("parser_contract_drift", extra=event)
 
     def _log_empty_schedule(self, diagnostics: ContractDriftDiagnostics) -> None:
-        """Log a freshly-parsed zero-entry result at WARNING, not ERROR.
+        """Emit a distinct debug event for a freshly parsed zero-entry result.
 
         A schedule can come back with no entries because the upstream
         contract broke, or simply because nothing is published for that
         UPRN — the parser cannot tell those apart from the HTML alone.
-        Logging this under the same "parser_contract_drift" ERROR event as a
-        genuine parse failure would fire alerting on an entirely ordinary
-        outcome, so it gets its own lower-severity event instead.
+        Keeping a separate event name lets the host distinguish that ambiguity
+        from a parse failure it knows represents contract drift.
         """
         event: dict[str, object] = {
             "payload_size_bytes": diagnostics.payload_size_bytes,
@@ -266,11 +263,11 @@ class LewishamParser:
             event["payload_preview"] = diagnostics.payload_preview
             event["payload_truncated"] = diagnostics.payload_truncated
 
-        logger.warning("parser_schedule_empty", **event)
+        _LOGGER.debug("parser_schedule_empty", extra=event)
 
     def _should_include_raw_upstream(self) -> bool:
         return (
             self._include_raw_upstream
             and self._raw_upstream_max_chars > 0
-            and logging.getLogger(__name__).isEnabledFor(logging.DEBUG)
+            and _LOGGER.isEnabledFor(logging.DEBUG)
         )

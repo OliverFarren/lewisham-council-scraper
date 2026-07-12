@@ -8,6 +8,11 @@ from lewisham_client.domain.errors import (
 )
 
 from lewisham_server.api.dependencies import LewishamServiceDependency
+from lewisham_server.api.operational_logging import (
+    log_address_lookup_completed,
+    log_contract_drift,
+    log_upstream_unavailable,
+)
 from lewisham_server.api.schemas.addresses import AddressCandidateResponse
 
 router = APIRouter()
@@ -38,14 +43,17 @@ async def search_addresses(
             detail=str(exc),
         ) from exc
     except UpstreamScraperChangedError as exc:
+        log_contract_drift(exc)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc
     except UpstreamUnavailableError as exc:
+        log_upstream_unavailable(exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(exc),
         ) from exc
 
+    log_address_lookup_completed(candidate_count=len(addresses))
     return [AddressCandidateResponse.from_domain(address) for address in addresses]

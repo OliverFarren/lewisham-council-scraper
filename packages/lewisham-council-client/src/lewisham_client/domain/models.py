@@ -72,20 +72,24 @@ class ContractDriftDiagnostics:
     """Structured detail about an upstream contract-drift failure.
 
     Attached to DomainError.diagnostics (see domain.errors) so a consumer can
-    build a rich failure report without intercepting structlog output.
+    build a rich failure report without intercepting log output.
 
     source tells a consumer which fields to expect, rather than having to
-    guess based on which ones happen to be set: "client" failures (an
-    unexpected HTTP status, or a response LewishamClient itself couldn't
-    decode or make sense of) always populate status_code and endpoint;
-    "parser" failures (LewishamParser couldn't find any collection entries
-    in the decoded HTML) never do.
+    guess based on which ones happen to be set: "client" failures against a
+    received response (an unexpected HTTP status, or a response
+    LewishamClient itself couldn't decode or make sense of) always populate
+    status_code, endpoint, and the payload fields; "parser" failures
+    (LewishamParser couldn't find any collection entries in the decoded
+    HTML) never populate status_code or endpoint. A "client" failure that
+    never received a response at all (a timeout or transport error) instead
+    populates endpoint and duration_ms, leaving status_code and the payload
+    fields unset.
 
     payload_size_bytes and payload_sha256 carry no PII and are always
-    populated. payload_preview is only populated for "parser" failures when
-    the caller opted in via LewishamParser(include_raw_upstream=True); it may
-    contain PII scraped from the upstream page and callers should treat it
-    accordingly.
+    populated when a response was received. payload_preview is only
+    populated for "parser" failures when the caller opted in via
+    LewishamParser(include_raw_upstream=True); it may contain PII scraped
+    from the upstream page and callers should treat it accordingly.
     """
 
     error_type: str
@@ -97,3 +101,4 @@ class ContractDriftDiagnostics:
     payload_truncated: bool = False
     status_code: int | None = None
     endpoint: str | None = None
+    duration_ms: float | None = None

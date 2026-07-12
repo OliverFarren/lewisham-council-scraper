@@ -1,8 +1,8 @@
 import json
+import logging
 from datetime import date
 
 import pytest
-from conftest import configure_test_logging
 
 from lewisham_client.clients.lewisham import LewishamParser
 from lewisham_client.domain.errors import (
@@ -10,13 +10,22 @@ from lewisham_client.domain.errors import (
     UpstreamScraperChangedError,
 )
 
+_PARSER_LOGGER = "lewisham_client.clients.lewisham.parser"
+
 
 def encode_html(fragment: str) -> str:
     return json.dumps(fragment)
 
 
-def json_events(output: str) -> list[dict[str, object]]:
-    return [json.loads(line) for line in output.splitlines()]
+def _event_record(
+    caplog: pytest.LogCaptureFixture,
+    event: str,
+) -> logging.LogRecord:
+    return next(
+        record
+        for record in caplog.records
+        if record.name == _PARSER_LOGGER and record.getMessage() == event
+    )
 
 
 # Reference date for tests: Friday 2026-06-26.
@@ -174,52 +183,56 @@ def test_parser_rejects_malformed_json() -> None:
         parser.parse_collection_schedule("{not-json", reference_date=_REFERENCE_DATE)
 
 
-def test_parser_logs_contract_drift_without_raw_payload_by_default(capsys) -> None:
-    configure_test_logging("debug")
+def test_parser_logs_contract_drift_without_raw_payload_by_default(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG, logger=_PARSER_LOGGER)
     parser = LewishamParser()
     raw_body = "{not-json SECRET-UPSTREAM-PAYLOAD"
 
     with pytest.raises(UpstreamScraperChangedError):
         parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
 
-    captured = capsys.readouterr()
-    event = json_events(captured.err)[0]
+    event = _event_record(caplog, "parser_contract_drift")
 
-    assert event["event"] == "parser_contract_drift"
-    assert event["payload_size_bytes"] == len(raw_body.encode("utf-8"))
-    assert "payload_sha256" in event
-    assert "payload_preview" not in event
-    assert "SECRET-UPSTREAM-PAYLOAD" not in captured.err
+    assert event.levelno == logging.DEBUG
+    assert event.payload_size_bytes == len(raw_body.encode("utf-8"))
+    assert event.payload_sha256 is not None
+    assert not hasattr(event, "payload_preview")
+    assert "SECRET-UPSTREAM-PAYLOAD" not in repr(event.__dict__)
 
 
-def test_parser_logs_raw_preview_only_with_debug_and_explicit_opt_in(capsys) -> None:
-    configure_test_logging("debug")
+def test_parser_logs_raw_preview_only_with_debug_and_explicit_opt_in(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG, logger=_PARSER_LOGGER)
     parser = LewishamParser(include_raw_upstream=True, raw_upstream_max_chars=10)
     raw_body = "{not-json SECRET-UPSTREAM-PAYLOAD"
 
     with pytest.raises(UpstreamScraperChangedError):
         parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
 
-    captured = capsys.readouterr()
-    event = json_events(captured.err)[0]
+    event = _event_record(caplog, "parser_contract_drift")
 
-    assert event["payload_preview"] == raw_body[:10]
-    assert event["payload_truncated"] is True
+    assert event.payload_preview == raw_body[:10]
+    assert event.payload_truncated is True
 
 
-def test_parser_skips_raw_preview_when_debug_is_disabled(capsys) -> None:
-    configure_test_logging("info")
+def test_parser_emits_no_event_when_debug_is_disabled(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO, logger=_PARSER_LOGGER)
     parser = LewishamParser(include_raw_upstream=True, raw_upstream_max_chars=10)
     raw_body = "{not-json SECRET-UPSTREAM-PAYLOAD"
 
     with pytest.raises(UpstreamScraperChangedError):
         parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
 
-    captured = capsys.readouterr()
-    event = json_events(captured.err)[0]
-
-    assert "payload_preview" not in event
-    assert "SECRET-UPSTREAM-PAYLOAD" not in captured.err
+    assert all(
+        record.name != _PARSER_LOGGER or record.getMessage() != "parser_contract_drift"
+        for record in caplog.records
+    )
+    assert "SECRET-UPSTREAM-PAYLOAD" not in caplog.text
 
 
 def test_parser_rejects_malformed_date_phrase() -> None:
@@ -302,9 +315,11 @@ def test_parser_attaches_diagnostics_to_empty_schedule_error() -> None:
     assert diagnostics.payload_sha256 is not None
 
 
-def test_parser_logs_empty_schedule_as_warning_not_contract_drift(capsys) -> None:
-    """A genuinely-empty schedule must not raise ERROR-level alerting noise."""
-    configure_test_logging("debug")
+def test_parser_logs_empty_schedule_as_debug_not_contract_drift(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A genuinely empty schedule remains diagnostic inside the library."""
+    caplog.set_level(logging.DEBUG, logger=_PARSER_LOGGER)
     parser = LewishamParser()
     raw_body = encode_html(
         """
@@ -317,14 +332,13 @@ def test_parser_logs_empty_schedule_as_warning_not_contract_drift(capsys) -> Non
     with pytest.raises(CollectionScheduleNotFoundError):
         parser.parse_collection_schedule(raw_body, reference_date=_REFERENCE_DATE)
 
-    captured = capsys.readouterr()
-    events = json_events(captured.err)
-
-    assert all(event["event"] != "parser_contract_drift" for event in events)
-    empty_event = next(
-        event for event in events if event["event"] == "parser_schedule_empty"
+    assert all(
+        record.name != _PARSER_LOGGER or record.getMessage() != "parser_contract_drift"
+        for record in caplog.records
     )
-    assert empty_event["level"] == "warning"
+    empty_event = _event_record(caplog, "parser_schedule_empty")
+    assert empty_event.levelno == logging.DEBUG
+    assert all(record.levelno < logging.WARNING for record in caplog.records)
 
 
 def test_parser_normalises_non_breaking_spaces_and_frequency_case() -> None:

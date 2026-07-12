@@ -165,6 +165,7 @@ def configure_logging(settings: Settings) -> None:
 
     shared_processors = [
         structlog.contextvars.merge_contextvars,
+        structlog.stdlib.ExtraAdder(),
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
         structlog.processors.TimeStamper(fmt="%Y-%m-%dT%H:%M:%SZ", utc=True),

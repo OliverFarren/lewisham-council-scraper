@@ -294,7 +294,6 @@ name = "lewisham-council-client"
 source = { editable = "packages/lewisham-council-client" }
 dependencies = [
     { name = "httpx" },
-    { name = "structlog" },
 ]
 
 [package.dev-dependencies]
@@ -307,10 +306,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.27.0" },
-    { name = "structlog", specifier = ">=26.1.0" },
-]
+requires-dist = [{ name = "httpx", specifier = ">=0.27.0" }]
 
 [package.metadata.requires-dev]
 dev = [

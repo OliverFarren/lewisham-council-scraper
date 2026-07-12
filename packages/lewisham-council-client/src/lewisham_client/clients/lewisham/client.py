@@ -1,11 +1,11 @@
 import hashlib
+import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 from time import perf_counter
 from typing import NoReturn
 
 import httpx
-import structlog
 
 from lewisham_client.clients.lewisham.config import (
     ADDRESS_FINDER_PATH,
@@ -26,7 +26,7 @@ from lewisham_client.domain.errors import (
 )
 from lewisham_client.domain.models import AddressCandidate, ContractDriftDiagnostics
 
-logger = structlog.get_logger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 
 def _default_clock() -> datetime:
@@ -140,10 +140,12 @@ class LewishamClient:
         params: dict[str, str],
     ) -> httpx.Response:
         start_time = perf_counter()
-        logger.debug(
+        _LOGGER.debug(
             "upstream_request",
-            endpoint=endpoint_name,
-            upstream_path=path,
+            extra={
+                "endpoint": endpoint_name,
+                "upstream_path": path,
+            },
         )
         try:
             response = await self._client.post(
@@ -151,30 +153,58 @@ class LewishamClient:
                 params=params,
                 headers=self._headers,
             )
-            logger.debug(
+            _LOGGER.debug(
                 "upstream_response",
-                endpoint=endpoint_name,
-                status_code=response.status_code,
-                duration_ms=_duration_ms(start_time),
-                response_size_bytes=len(response.content),
+                extra={
+                    "endpoint": endpoint_name,
+                    "status_code": response.status_code,
+                    "duration_ms": _duration_ms(start_time),
+                    "response_size_bytes": len(response.content),
+                },
             )
             return response
         except httpx.TimeoutException as exc:
-            logger.warning(
+            duration_ms = _duration_ms(start_time)
+            _LOGGER.debug(
                 "upstream_timeout",
-                endpoint=endpoint_name,
-                duration_ms=_duration_ms(start_time),
-                error_type=type(exc).__name__,
+                extra={
+                    "endpoint": endpoint_name,
+                    "duration_ms": duration_ms,
+                    "error_type": type(exc).__name__,
+                },
             )
-            raise UpstreamUnavailableError("Lewisham request timed out.") from exc
+            message = "Lewisham request timed out."
+            raise UpstreamUnavailableError(
+                message,
+                diagnostics=ContractDriftDiagnostics(
+                    error_type=type(exc).__name__,
+                    error_message=message,
+                    source="client",
+                    endpoint=endpoint_name,
+                    duration_ms=duration_ms,
+                ),
+            ) from exc
         except httpx.TransportError as exc:
-            logger.warning(
+            duration_ms = _duration_ms(start_time)
+            _LOGGER.debug(
                 "upstream_transport_error",
-                endpoint=endpoint_name,
-                duration_ms=_duration_ms(start_time),
-                error_type=type(exc).__name__,
+                extra={
+                    "endpoint": endpoint_name,
+                    "duration_ms": duration_ms,
+                    "error_type": type(exc).__name__,
+                },
             )
-            raise UpstreamUnavailableError("Lewisham request failed.") from exc
+            message = "Lewisham request failed."
+            raise UpstreamUnavailableError(
+                message,
+                diagnostics=ContractDriftDiagnostics(
+                    error_type=type(exc).__name__,
+                    error_message=message,
+                    source="client",
+                    endpoint=endpoint_name,
+                    duration_ms=duration_ms,
+                ),
+            ) from exc
 
     @property
     def _client(self) -> httpx.AsyncClient:
@@ -295,17 +325,27 @@ class LewishamClient:
         response: httpx.Response,
         cause: BaseException | None = None,
     ) -> NoReturn:
-        """Log and raise UpstreamScraperChangedError with diagnostics attached.
+        """Emit diagnostics at debug and raise UpstreamScraperChangedError.
 
         The single raise point for every upstream contract-drift failure in
         this client, so every drift raise site — present and future — gets a
         ContractDriftDiagnostics for free instead of needing its own opt-in.
+
+        The debug event is named "upstream_contract_drift_detected" rather
+        than "upstream_contract_drift" so it doesn't share an event name with
+        the server's ERROR-level event of the latter name — the two are
+        emitted by different loggers at different severities and describe
+        different responsibilities (client-side trace vs. application-level
+        operational failure), so collapsing them to one string would make
+        event-keyed log aggregation conflate them.
         """
-        logger.error(
-            "upstream_contract_drift",
-            endpoint=endpoint_name,
-            status_code=response.status_code,
-            response_size_bytes=len(response.content),
+        _LOGGER.debug(
+            "upstream_contract_drift_detected",
+            extra={
+                "endpoint": endpoint_name,
+                "status_code": response.status_code,
+                "response_size_bytes": len(response.content),
+            },
         )
         error = UpstreamScraperChangedError(
             message,

@@ -126,6 +126,25 @@ summary = schedule.data_quality()
 print(summary.published_count, summary.weekday_derived_count)
 ```
 
+## Logging
+
+The client uses Python's standard `logging` package and does not configure
+handlers, formatting, destinations, or process-wide levels. Cache activity,
+upstream request metadata, parser diagnostics, and operation outcomes are
+available at `DEBUG`:
+
+```python
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logging.getLogger("lewisham_client").setLevel(logging.DEBUG)
+```
+
+Structured context is attached to each `LogRecord` through `extra`, so a host
+application can render it as text or JSON. Raised `DomainError` exceptions do
+not also produce warning or error records from the client; the host decides
+how visibly to report the operation it is handling.
+
 ## Caching
 
 `LewishamService` uses an in-process `MemoryTtlCache` by default with

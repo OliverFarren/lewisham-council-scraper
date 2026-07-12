@@ -2,6 +2,25 @@
 
 All notable changes to `lewisham-council-client` are documented here.
 
+## Unreleased
+
+### Changed
+
+- Replaced the client's direct structlog dependency with named standard-library
+  loggers so embedding applications retain control of filtering, formatting,
+  and output.
+- Client cache, request, completion, and pre-exception diagnostics are now
+  `DEBUG` records. Applications remain responsible for visible operational
+  events when they handle a result or typed exception.
+- `UpstreamUnavailableError` raised for a timeout or transport failure now
+  carries a `ContractDriftDiagnostics` snapshot with `endpoint`, `duration_ms`,
+  and `error_type`, so a host can report those details without needing
+  `DEBUG`-level access to the client's internal trace.
+- Renamed the client's debug-level contract-drift event from
+  `upstream_contract_drift` to `upstream_contract_drift_detected` so it no
+  longer shares an event name with the server's application-level
+  `upstream_contract_drift` event emitted at `ERROR`.
+
 ## 0.2.0
 
 ### Added

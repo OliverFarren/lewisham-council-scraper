@@ -1,8 +1,7 @@
+import logging
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
-
-import structlog
 
 from lewisham_client.clients.lewisham import (
     CollectionScheduleRaw,
@@ -23,7 +22,7 @@ SCHEDULE_CACHE_TTL = timedelta(hours=24)
 ADDRESS_SEARCH_CACHE_TTL = timedelta(days=7)
 UPRN_CACHE_TTL = timedelta(days=30)
 NEGATIVE_CACHE_TTL = timedelta(hours=1)
-logger = structlog.get_logger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 
 def _default_clock() -> datetime:
@@ -77,33 +76,49 @@ class LewishamService:
 
         search_key = self._key("address-search", postcode_or_street)
         if self._negative_cache.get(search_key) is True:
-            logger.debug("negative_cache_hit", namespace="address_search")
-            logger.info("address_lookup_completed", candidate_count=0)
+            _LOGGER.debug(
+                "negative_cache_hit",
+                extra={"namespace": "address_search"},
+            )
+            _LOGGER.debug(
+                "address_lookup_completed",
+                extra={"candidate_count": 0},
+            )
             return []
 
         cached_addresses = self._address_search_cache.get(search_key)
         if cached_addresses is not None:
-            logger.debug(
+            _LOGGER.debug(
                 "cache_hit",
-                namespace="address_search",
-                candidate_count=len(cached_addresses),
+                extra={
+                    "namespace": "address_search",
+                    "candidate_count": len(cached_addresses),
+                },
             )
-            logger.info(
+            _LOGGER.debug(
                 "address_lookup_completed",
-                candidate_count=len(cached_addresses),
+                extra={"candidate_count": len(cached_addresses)},
             )
             return list(cached_addresses)
 
-        logger.debug("cache_miss", namespace="address_search")
+        _LOGGER.debug(
+            "cache_miss",
+            extra={"namespace": "address_search"},
+        )
         addresses = await self._client.lookup_addresses(postcode_or_street)
         if not addresses:
             self._negative_cache.set(search_key, True, self._negative_cache_ttl)
-            logger.debug(
+            _LOGGER.debug(
                 "cache_store",
-                namespace="address_search",
-                cache_type="negative",
+                extra={
+                    "namespace": "address_search",
+                    "cache_type": "negative",
+                },
             )
-            logger.info("address_lookup_completed", candidate_count=0)
+            _LOGGER.debug(
+                "address_lookup_completed",
+                extra={"candidate_count": 0},
+            )
             return []
 
         self._address_search_cache.set(
@@ -111,11 +126,13 @@ class LewishamService:
             list(addresses),
             self._address_search_cache_ttl,
         )
-        logger.debug(
+        _LOGGER.debug(
             "cache_store",
-            namespace="address_search",
-            cache_type="positive",
-            candidate_count=len(addresses),
+            extra={
+                "namespace": "address_search",
+                "cache_type": "positive",
+                "candidate_count": len(addresses),
+            },
         )
         for address in addresses:
             self._address_cache.set(
@@ -123,9 +140,18 @@ class LewishamService:
                 address,
                 self._uprn_cache_ttl,
             )
-            logger.debug("cache_store", namespace="address", cache_type="positive")
+            _LOGGER.debug(
+                "cache_store",
+                extra={
+                    "namespace": "address",
+                    "cache_type": "positive",
+                },
+            )
 
-        logger.info("address_lookup_completed", candidate_count=len(addresses))
+        _LOGGER.debug(
+            "address_lookup_completed",
+            extra={"candidate_count": len(addresses)},
+        )
         return addresses
 
     async def get_collection_schedule(self, uprn: str) -> CollectionSchedule:
@@ -133,28 +159,38 @@ class LewishamService:
 
         schedule_key = self._key("schedule", uprn)
         if self._negative_cache.get(schedule_key) is True:
-            logger.debug("negative_cache_hit", namespace="schedule")
-            logger.warning("schedule_lookup_missing")
+            _LOGGER.debug(
+                "negative_cache_hit",
+                extra={"namespace": "schedule"},
+            )
+            _LOGGER.debug("schedule_lookup_missing")
             raise CollectionScheduleNotFoundError(
                 f"No collection schedule found for UPRN {uprn.strip()}."
             )
 
         cached_schedule = self._schedule_cache.get(schedule_key)
         if cached_schedule is not None:
-            logger.debug(
+            _LOGGER.debug(
                 "cache_hit",
-                namespace="schedule",
-                collection_count=len(cached_schedule.collections),
+                extra={
+                    "namespace": "schedule",
+                    "collection_count": len(cached_schedule.collections),
+                },
             )
-            logger.info(
+            _LOGGER.debug(
                 "schedule_lookup_completed",
-                collection_count=len(cached_schedule.collections),
-                source_url=cached_schedule.source_url,
-                fetched_at=cached_schedule.fetched_at.isoformat(),
+                extra={
+                    "collection_count": len(cached_schedule.collections),
+                    "source_url": cached_schedule.source_url,
+                    "fetched_at": cached_schedule.fetched_at.isoformat(),
+                },
             )
             return cached_schedule
 
-        logger.debug("cache_miss", namespace="schedule")
+        _LOGGER.debug(
+            "cache_miss",
+            extra={"namespace": "schedule"},
+        )
         address = await self._get_address(uprn)
         raw_schedule = await self._client.get_collection_schedule(address.uprn)
 
@@ -165,8 +201,14 @@ class LewishamService:
             )
         except CollectionScheduleNotFoundError:
             self._negative_cache.set(schedule_key, True, self._negative_cache_ttl)
-            logger.debug("cache_store", namespace="schedule", cache_type="negative")
-            logger.warning("schedule_lookup_missing")
+            _LOGGER.debug(
+                "cache_store",
+                extra={
+                    "namespace": "schedule",
+                    "cache_type": "negative",
+                },
+            )
+            _LOGGER.debug("schedule_lookup_missing")
             raise
 
         schedule = CollectionSchedule(
@@ -177,17 +219,21 @@ class LewishamService:
             fetched_at=raw_schedule.fetched_at,
         )
         self._schedule_cache.set(schedule_key, schedule, self._schedule_cache_ttl)
-        logger.debug(
+        _LOGGER.debug(
             "cache_store",
-            namespace="schedule",
-            cache_type="positive",
-            collection_count=len(schedule.collections),
+            extra={
+                "namespace": "schedule",
+                "cache_type": "positive",
+                "collection_count": len(schedule.collections),
+            },
         )
-        logger.info(
+        _LOGGER.debug(
             "schedule_lookup_completed",
-            collection_count=len(schedule.collections),
-            source_url=schedule.source_url,
-            fetched_at=schedule.fetched_at.isoformat(),
+            extra={
+                "collection_count": len(schedule.collections),
+                "source_url": schedule.source_url,
+                "fetched_at": schedule.fetched_at.isoformat(),
+            },
         )
         return schedule
 
@@ -199,26 +245,47 @@ class LewishamService:
     async def _get_address(self, uprn: str) -> AddressCandidate:
         address_key = self._key("address", uprn)
         if self._negative_cache.get(address_key) is True:
-            logger.debug("negative_cache_hit", namespace="address")
-            logger.warning("address_lookup_missing")
+            _LOGGER.debug(
+                "negative_cache_hit",
+                extra={"namespace": "address"},
+            )
+            _LOGGER.debug("address_lookup_missing")
             raise AddressNotFoundError(f"No address found for UPRN {uprn.strip()}.")
 
         cached_address = self._address_cache.get(address_key)
         if cached_address is not None:
-            logger.debug("cache_hit", namespace="address")
+            _LOGGER.debug(
+                "cache_hit",
+                extra={"namespace": "address"},
+            )
             return cached_address
 
-        logger.debug("cache_miss", namespace="address")
+        _LOGGER.debug(
+            "cache_miss",
+            extra={"namespace": "address"},
+        )
         try:
             address = await self._client.get_address(uprn)
         except AddressNotFoundError:
             self._negative_cache.set(address_key, True, self._negative_cache_ttl)
-            logger.debug("cache_store", namespace="address", cache_type="negative")
-            logger.warning("address_lookup_missing")
+            _LOGGER.debug(
+                "cache_store",
+                extra={
+                    "namespace": "address",
+                    "cache_type": "negative",
+                },
+            )
+            _LOGGER.debug("address_lookup_missing")
             raise
 
         self._address_cache.set(address_key, address, self._uprn_cache_ttl)
-        logger.debug("cache_store", namespace="address", cache_type="positive")
+        _LOGGER.debug(
+            "cache_store",
+            extra={
+                "namespace": "address",
+                "cache_type": "positive",
+            },
+        )
         return address
 
     @staticmethod

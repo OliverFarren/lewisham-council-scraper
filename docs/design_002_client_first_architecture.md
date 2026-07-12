@@ -7,6 +7,11 @@ status: accepted
 
 # Client-First Integration Architecture
 
+> **Related design:** Extracting the reusable client also created a boundary
+> around logging configuration and operational event ownership. That boundary
+> is defined in
+> [Design 003: Logging Across Application and Library Boundaries](design_003_logging_boundaries.md).
+
 ## Relationship to Design 001
 
 This document follows [Design 001](design_001_motivation.md). The original

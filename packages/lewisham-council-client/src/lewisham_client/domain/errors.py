@@ -71,11 +71,9 @@ class CollectionScheduleNotFoundError(DomainError):
     This can happen for two different reasons that look identical to the
     parser: the address genuinely has nothing published, or the page's shape
     changed and broke parsing. Since the parser can't tell those apart, both
-    cases still get a diagnostics snapshot attached, but are logged as a
-    WARNING ("parser_schedule_empty") rather than the ERROR
-    ("parser_contract_drift") used for failures we're confident really are
-    drift — so an ordinary "nothing scheduled" result doesn't trigger the
-    same alerting as a genuine break.
+    cases still get a diagnostics snapshot attached. Applications can use that
+    snapshot to distinguish a fresh parser result from a negative-cache hit and
+    decide how visibly to report it.
 
     diagnostics is None only when this error came from the negative cache
     instead — i.e. a repeat lookup that never touched the parser at all.

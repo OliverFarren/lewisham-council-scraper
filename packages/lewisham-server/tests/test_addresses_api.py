@@ -9,7 +9,7 @@ from lewisham_client.domain.errors import (
     UpstreamScraperChangedError,
     UpstreamUnavailableError,
 )
-from lewisham_client.domain.models import AddressCandidate
+from lewisham_client.domain.models import AddressCandidate, ContractDriftDiagnostics
 
 from lewisham_server.api.dependencies import get_lewisham_service
 from lewisham_server.logging_config import configure_logging
@@ -66,10 +66,15 @@ def test_request_logs_omit_query_values(capsys) -> None:
     captured = capsys.readouterr()
     events = [json.loads(line) for line in captured.out.splitlines()]
     request_event = next(event for event in events if event["event"] == "http_request")
+    domain_event = next(
+        event for event in events if event["event"] == "address_lookup_completed"
+    )
 
     assert request_event["method"] == "GET"
     assert request_event["route"] == "/addresses"
     assert request_event["status_code"] == 200
+    assert domain_event["candidate_count"] == 1
+    assert domain_event["level"] == "info"
     assert "SE6 1SQ" not in captured.out
 
 
@@ -93,3 +98,68 @@ def test_search_addresses_maps_domain_errors(
 
     assert response.status_code == expected_status
     assert response.json()["detail"] == str(error)
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_event", "expected_level"),
+    [
+        (
+            UpstreamScraperChangedError("changed"),
+            "upstream_contract_drift",
+            "error",
+        ),
+        (
+            UpstreamUnavailableError("unavailable"),
+            "upstream_unavailable",
+            "warning",
+        ),
+    ],
+)
+def test_search_addresses_logs_operational_failures_at_the_api_boundary(
+    capsys,
+    error: Exception,
+    expected_event: str,
+    expected_level: str,
+) -> None:
+    configure_logging(Settings(log_format="json", log_level="info"))
+    service = FakeAddressService()
+    service.error = error
+
+    with api_client(service) as client:
+        response = client.get("/addresses", params={"query": "SE6 1SQ"})
+
+    assert response.status_code in {502, 503}
+    captured = capsys.readouterr()
+    events = [json.loads(line) for line in captured.err.splitlines()]
+    event = next(event for event in events if event["event"] == expected_event)
+    assert event["level"] == expected_level
+    assert event["error_type"] == type(error).__name__
+    assert "SE6 1SQ" not in captured.err
+
+
+def test_search_addresses_logs_endpoint_and_duration_for_upstream_unavailable(
+    capsys,
+) -> None:
+    configure_logging(Settings(log_format="json", log_level="info"))
+    service = FakeAddressService()
+    service.error = UpstreamUnavailableError(
+        "Lewisham request timed out.",
+        diagnostics=ContractDriftDiagnostics(
+            error_type="TimeoutException",
+            error_message="Lewisham request timed out.",
+            source="client",
+            endpoint="AddressFinder",
+            duration_ms=5000.0,
+        ),
+    )
+
+    with api_client(service) as client:
+        response = client.get("/addresses", params={"query": "SE6 1SQ"})
+
+    assert response.status_code == 503
+    captured = capsys.readouterr()
+    events = [json.loads(line) for line in captured.err.splitlines()]
+    event = next(event for event in events if event["event"] == "upstream_unavailable")
+    assert event["endpoint"] == "AddressFinder"
+    assert event["duration_ms"] == 5000.0
+    assert event["error_type"] == "TimeoutException"
